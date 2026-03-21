@@ -1,14 +1,18 @@
 """
-agents/output_agent.py — Exports qualified leads + RunReport to Excel.
+agents/output_agent.py — Exports qualified leads + RunReport to Excel + JSON log.
 
 Responsibilities:
   1. Call ExcelExportTool to generate the .xlsx file.
-  2. Print a Rich table summary to stdout.
-  3. Return the output file path.
+  2. Write run_log_{timestamp}.json with full audit trail.
+  3. Print a Rich table summary to stdout.
+  4. Return the output file path.
 """
 
 from __future__ import annotations
 
+import json
+import re
+from datetime import datetime
 from pathlib import Path
 from typing import Sequence
 
@@ -50,8 +54,60 @@ class OutputAgent:
             filename_prefix=self.config.output_filename,
         )
 
-        self._print_summary(leads, report, out_path)
+        log_path = self._write_run_log(leads, report, out_path)
+        self._print_summary(leads, report, out_path, log_path)
         return out_path
+
+    # ──────────────────────────────────────────────────────────────
+
+    def _write_run_log(
+        self,
+        leads: list[QualifiedLead],
+        report: RunReport,
+        excel_path: str,
+    ) -> str:
+        """Write run_log_{timestamp}.json for audit and reproducibility."""
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_filename = f"run_log_{ts}.json"
+        log_path = Path("output") / log_filename
+
+        # Strip API keys from config snapshot
+        config_snapshot = self.config.model_dump()
+        # Sanitise any field that looks like a key/token (extra safety)
+        _KEY_PAT = re.compile(r"(?i)(api_key|secret|token|password)")
+        for k in list(config_snapshot.keys()):
+            if _KEY_PAT.search(k):
+                config_snapshot[k] = "***"
+
+        log_data = {
+            "campaign_name": report.campaign_name,
+            "timestamp": report.timestamp,
+            "duration_seconds": report.duration_seconds,
+            "iterations_used": report.iterations,
+            "config_snapshot": config_snapshot,
+            "report": report.model_dump(),
+            "sources_breakdown": report.sources_breakdown,
+            "leads_per_iteration": report.leads_per_iteration,
+            "error_log": report.error_log,
+            "excel_output": excel_path,
+            "leads_summary": [
+                {
+                    "name": l.name,
+                    "tier": l.tier,
+                    "final_score": l.final_score,
+                    "contact_priority": l.contact_priority,
+                    "source": l.source,
+                }
+                for l in sorted(leads, key=lambda l: l.contact_priority)
+            ],
+        }
+
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(log_path, "w", encoding="utf-8") as f:
+            json.dump(log_data, f, ensure_ascii=False, indent=2, default=str)
+
+        console.print(f"[dim]📋 Run log → {log_path}[/dim]")
+        return str(log_path)
 
     # ──────────────────────────────────────────────────────────────
 
@@ -60,6 +116,7 @@ class OutputAgent:
         leads: list[QualifiedLead],
         report: RunReport,
         out_path: str,
+        log_path: str = "",
     ) -> None:
         hot = [l for l in leads if l.tier == "HOT"]
         warm = [l for l in leads if l.tier == "WARM"]
@@ -109,3 +166,7 @@ class OutputAgent:
         console.print(
             f"\n[bold green]✅ Excel exportado → [link={out_path}]{out_path}[/link]"
         )
+        if log_path:
+            console.print(
+                f"[bold green]✅ Run log → [link={log_path}]{log_path}[/link]"
+            )
