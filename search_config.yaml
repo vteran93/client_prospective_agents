@@ -1,0 +1,32 @@
+# search_config.yaml — Editar aquí para configurar la campaña.
+# Nunca hardcodees queries en el código.
+
+campaign:
+  name: "Talleres Bogotá Q1-2026"
+  queries:
+    - "taller mecánico"
+    - "mecánico automotriz"
+    - "servicio técnico de autos"
+  city: "Bogotá"
+  country: "Colombia"
+  language: "es"
+  max_leads: 150
+  sources:
+    - google_maps   # Requiere GOOGLE_MAPS_API_KEY
+    - tavily        # Requiere TAVILY_API_KEY
+    - brave         # Requiere BRAVE_API_KEY
+    # - duckduckgo  # Sin API key — activar para desarrollo local
+  scrape_websites: true
+  scraper_concurrency: 8
+  output_filename: "prospectos_talleres_bogota"
+
+llm:
+  provider: bedrock          # bedrock | openai
+  primary_model: "anthropic.claude-3-5-sonnet-20241022-v2:0"
+  fallback_model: "gpt-4o"
+  temperature: 0.2
+
+qualification:
+  min_score_hot: 8.0
+  min_score_warm: 5.0
+  target_hot_warm: 80        # Reintentar si se obtienen menos leads calificados

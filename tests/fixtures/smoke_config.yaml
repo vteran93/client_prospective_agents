@@ -1,0 +1,22 @@
+campaign:
+  name: "Smoke Test Campaign"
+  queries:
+    - "talleres mecánicos bogotá"
+  city: "Bogotá"
+  country: "Colombia"
+  language: "es"
+  max_leads: 5
+  sources:
+    - duckduckgo
+  scrape_websites: false
+  scraper_concurrency: 2
+  output_filename: "smoke_test"
+
+llm:
+  provider: "openai"
+  temperature: 0.1
+
+qualification:
+  min_score_hot: 7.0
+  min_score_warm: 4.5
+  target_hot_warm: 3
