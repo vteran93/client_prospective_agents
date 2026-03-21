@@ -38,17 +38,19 @@ def deduplicate_leads(leads: Sequence[RawLead], threshold: int = 85) -> list[Raw
         Deduplicated list of RawLead objects.
     """
     try:
-        from rapidfuzz import fuzz  # lazy import
+        from rapidfuzz import fuzz as _fuzz  # lazy import — only needed for fuzzy step
+
+        _has_rapidfuzz = True
     except ImportError:
-        # Graceful degradation: return as-is without fuzzy dedup
-        return list(leads)
+        _fuzz = None
+        _has_rapidfuzz = False
 
     buckets: list[RawLead] = []
 
     for lead in leads:
         matched = False
 
-        # --- exact place_id match ---
+        # --- exact place_id match (no rapidfuzz needed) ---
         if lead.place_id:
             for existing in buckets:
                 if existing.place_id and existing.place_id == lead.place_id:
@@ -58,7 +60,7 @@ def deduplicate_leads(leads: Sequence[RawLead], threshold: int = 85) -> list[Raw
             if matched:
                 continue
 
-        # --- exact phone prefix match ---
+        # --- exact phone prefix match (no rapidfuzz needed) ---
         if lead.phone:
             norm_phone = _norm_phone(lead.phone)
             if norm_phone:
@@ -73,18 +75,18 @@ def deduplicate_leads(leads: Sequence[RawLead], threshold: int = 85) -> list[Raw
                 if matched:
                     continue
 
-        # --- fuzzy name + address match ---
-        norm_name = _norm_text(lead.name)
-        for existing in buckets:
-            if not lead.name or not existing.name:
-                continue
-            score = fuzz.token_sort_ratio(norm_name, _norm_text(existing.name))
-            if score >= threshold:
-                # Extra guard: same rough address area (shared first word)
-                if _same_area(lead.address, existing.address):
-                    _merge_into(existing, lead)
-                    matched = True
-                    break
+        # --- fuzzy name + address match (requires rapidfuzz) ---
+        if _has_rapidfuzz and lead.name:
+            norm_name = _norm_text(lead.name)
+            for existing in buckets:
+                if not existing.name:
+                    continue
+                score = _fuzz.token_sort_ratio(norm_name, _norm_text(existing.name))
+                if score >= threshold:
+                    if _same_area(lead.address, existing.address):
+                        _merge_into(existing, lead)
+                        matched = True
+                        break
 
         if not matched:
             buckets.append(lead.model_copy(deep=True))
