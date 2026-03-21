@@ -22,7 +22,6 @@ class QualificationConfig(BaseModel):
     min_score_hot: float = 8.0
     min_score_warm: float = 5.0
     target_hot_warm: int = 80
-    max_cold: int = Field(default=10, ge=0, description="Máximo de leads COLD a conservar. 0 = descartar todos.")
 
 
 class SearchConfig(BaseModel):

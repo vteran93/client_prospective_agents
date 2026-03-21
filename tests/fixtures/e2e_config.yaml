@@ -30,4 +30,3 @@ qualification:
   min_score_hot: 7.0
   min_score_warm: 4.5
   target_hot_warm: 10
-  max_cold: 5       # Máximo de leads COLD a conservar en el Excel
