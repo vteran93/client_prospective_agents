@@ -59,7 +59,7 @@ class ProspectingCrew:
     def __init__(self, config: SearchConfig, settings: AppSettings) -> None:
         self.config = config
         self.settings = settings
-        self.llm: BaseChatModel = get_llm(settings)
+        self.llm: BaseChatModel = get_llm(settings, provider=config.llm_provider)
 
     # ──────────────────────────────────────────────────────────────
     # Entry point

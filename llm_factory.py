@@ -19,15 +19,19 @@ _BACKOFF_BASE = 1.5  # seconds
 
 
 def get_llm(
-    settings: AppSettings, temperature: Optional[float] = None
+    settings: AppSettings,
+    temperature: Optional[float] = None,
+    provider: Optional[str] = None,
 ) -> BaseChatModel:
     """
-    Return the appropriate LLM based on settings.llm_provider.
+    Return the appropriate LLM based on provider or settings.llm_provider.
     Falls back to OpenAI if Bedrock is unavailable.
 
     Args:
         settings: AppSettings instance with credentials
         temperature: Override temperature (defaults to settings.llm_temperature)
+        provider: Explicit provider override ("bedrock" | "openai"). Takes
+                  precedence over settings.llm_provider when supplied.
 
     Returns:
         Configured BaseChatModel (ChatBedrock or ChatOpenAI)
@@ -36,8 +40,9 @@ def get_llm(
         RuntimeError: If no LLM can be initialised with the given credentials
     """
     temp = temperature if temperature is not None else settings.llm_temperature
+    effective_provider = provider or settings.llm_provider
 
-    if settings.llm_provider == "bedrock":
+    if effective_provider == "bedrock":
         llm = _build_bedrock(settings, temp)
         if llm is not None:
             return llm
@@ -112,7 +117,9 @@ def _build_openai(settings: AppSettings, temperature: float) -> Optional[BaseCha
 # ──────────────────────────────────────────────────────────────────
 
 
-def llm_invoke_with_retry(llm: BaseChatModel, prompt, settings: AppSettings):
+def llm_invoke_with_retry(
+    llm: BaseChatModel, prompt, settings: AppSettings, provider: Optional[str] = None
+):
     """
     Invoke LLM with automatic retry and Bedrock→OpenAI fallback on throttling.
 
@@ -144,7 +151,8 @@ def llm_invoke_with_retry(llm: BaseChatModel, prompt, settings: AppSettings):
                 break
 
     # Final fallback: switch provider
-    if settings.llm_provider == "bedrock":
+    effective_provider = provider or settings.llm_provider
+    if effective_provider == "bedrock":
         console.print("[yellow]↩ Activando fallback a OpenAI tras fallo en Bedrock...")
         fallback = _build_openai(settings, settings.llm_temperature)
         if fallback:
