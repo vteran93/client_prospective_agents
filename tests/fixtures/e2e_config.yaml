@@ -1,0 +1,32 @@
+# e2e_config.yaml — Config para prueba E2E con APIs reales (TICKET-032)
+# Fuentes: Tavily (web search) + Google Maps (Places)
+# LLM: OpenAI gpt-4o
+# Requiere en .env: OPENAI_API_KEY, TAVILY_API_KEY, GOOGLE_MAPS_API_KEY
+
+campaign:
+  name: "E2E Talleres Bogotá"
+  queries:
+    - "taller mecánico Bogotá"
+    - "mecánico automotriz Bogotá norte"
+    - "servicio técnico carros Bogotá"
+  city: "Bogotá"
+  country: "Colombia"
+  language: "es"
+  max_leads: 20
+  sources:
+    - google_maps   # Requiere GOOGLE_MAPS_API_KEY
+    - tavily        # Requiere TAVILY_API_KEY
+  scrape_websites: true
+  scraper_concurrency: 4
+  output_filename: "e2e_talleres_bogota"
+
+llm:
+  provider: openai
+  primary_model: "gpt-4o"
+  fallback_model: "gpt-4o-mini"
+  temperature: 0.2
+
+qualification:
+  min_score_hot: 7.0
+  min_score_warm: 4.5
+  target_hot_warm: 10

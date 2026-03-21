@@ -5,7 +5,7 @@
 **Fecha base**: 2026-03-21  
 **Última actualización**: 2026-03-21  
 **Estimación total**: ~13 días de desarrollo (1 desarrollador senior full-time)  
-**Estado actual**: 🟢 EP-0 → EP-4 + EP-6 COMPLETADOS · Pendiente: EP-5 (Excel E2E), Smoke Test, README, deps producción
+**Estado actual**: 🟢 EP-0 → EP-4 + EP-6 COMPLETADOS · Pendiente: EP-5 (Excel E2E), README, E2E real con APIs
 
 ---
 
@@ -19,8 +19,8 @@
 | [EP-3](#ep-3--prompts--structured-output) | Prompts & Structured Output | 3 tickets | 1.0 d | ✅ DONE |
 | [EP-4](#ep-4--orquestación-crew) | Orquestación Crew | 2 tickets | 1.5 d | ✅ DONE |
 | [EP-5](#ep-5--output--excel) | Output & Excel | 2 tickets | 1.0 d | 🔶 PENDIENTE |
-| [EP-6](#ep-6--testing--qa) | Testing & QA | 4 tickets | 1.5 d | 🔶 PARCIAL |
-| **Total** | | **31 tickets** | **~13 días** | |
+| [EP-6](#ep-6--testing--qa) | Testing & QA | 5 tickets | 2.0 d | 🔶 PARCIAL |
+| **Total** | | **32 tickets** | **~13.5 días** | |
 
 ---
 
@@ -738,7 +738,7 @@ Validar que el Excel generado es correcto, completo y abre sin errores en Micros
 
 ---
 
-### TICKET-027 · JSON Run Log 🔶 PENDIENTE
+### TICKET-027 · JSON Run Log ✅ DONE
 
 ```
 Tipo:       feature
@@ -816,7 +816,7 @@ Tests de integración que verifican la cadena de transformación de datos entre 
 
 ---
 
-### TICKET-030 · Smoke test end-to-end (modo dev) 🔶 PENDIENTE
+### TICKET-030 · Smoke test end-to-end (modo dev) ✅ DONE
 
 ```
 Tipo:       chore
@@ -838,12 +838,12 @@ playwright install chromium
 ```
 
 **Criterios de aceptación**
-- [ ] `python main.py --config tests/fixtures/smoke_config.yaml --max-leads 5` → sin crash
-- [ ] `smoke_config.yaml`: `sources: [duckduckgo]`, query simple, `max_leads: 5` *(fixture ya existe)*
-- [ ] Archivo Excel generado en `output/`
-- [ ] Excel tiene al menos 1 fila en alguna hoja (HOT, WARM o COLD)
-- [ ] `run_log_*.json` generado
-- [ ] Duración total < 120 segundos
+- [X] `python main.py --config tests/fixtures/smoke_config.yaml --max-leads 5` → sin crash
+- [X] `smoke_config.yaml`: `sources: [duckduckgo]`, query simple, `max_leads: 5` *(fixture ya existe)*
+- [X] Archivo Excel generado en `output/`
+- [X] Excel tiene al menos 1 fila en alguna hoja (HOT, WARM o COLD)
+- [X] `run_log_*.json` generado
+- [X] Duración total < 120 segundos
 
 ---
 
@@ -868,6 +868,48 @@ README de uso del sistema para el equipo de Growth Guard.
 - [ ] Sección: **Modo local sin API keys** (solo DuckDuckGo + OpenAI)
 - [ ] Sección: **Quick smoke test**
 - [ ] Sección: **Variables de entorno** (tabla con nombre, fuente de obtención, si es obligatoria)
+
+---
+
+### TICKET-032 · Prueba E2E con APIs reales (Tavily + Google Maps + OpenAI) 🔶 PENDIENTE
+
+```
+Tipo:       chore / spike
+Prioridad:  P1
+Est.:       2 h
+Deps.:      TICKET-030 (smoke test OK), TICKET-031 (README escrito)
+Estado:     PENDIENTE — depende de configuración de API keys en .env
+```
+
+**Descripción**  
+Prueba end-to-end completa del pipeline usando fuentes reales: Tavily para búsqueda web y Google Places para datos de mapas. Valida que con API keys reales el sistema genere leads reales, los perfila correctamente y exporta un Excel utilizable por el equipo de ventas.
+
+**Prerequisito — API keys requeridas en `.env`:**
+```dotenv
+OPENAI_API_KEY=sk-...
+TAVILY_API_KEY=tvly-...
+GOOGLE_MAPS_API_KEY=AIza...
+```
+
+**Comando de ejecución:**
+```bash
+source .venv/bin/activate
+python main.py --config tests/fixtures/e2e_config.yaml --max-leads 20 --llm openai
+```
+
+**Criterios de aceptación**
+- [ ] Pipeline completa sin crash (exit code 0)
+- [ ] Al menos 5 leads encontrados y guardados en el Excel
+- [ ] Excel generado en `output/` con al menos 1 fila en hoja HOT o WARM
+- [ ] `run_log_*.json` generado con `leads_summary` no vacío
+- [ ] Columnas CONTACTO: nombre, teléfono o dirección presentes en ≥ 50% de los leads
+- [ ] Columnas PERFIL HORMOZI: `hormozi_score` calculado (> 0) en todos los leads
+- [ ] Columnas TIMING: `timing_summary` presente en todos los leads
+- [ ] Duración total < 300 segundos para 20 leads
+- [ ] Sin errores `LLMCallError` ni `ValidationError` no controlados en el log
+
+**Config de prueba:** `tests/fixtures/e2e_config.yaml`  
+**Output esperado:** `output/e2e_talleres_bogota_YYYYMMDD_HHmmss.xlsx`
 
 ---
 
@@ -905,6 +947,8 @@ TICKET-001 (Setup)
     TICKET-030 (Smoke Test)
          │
     TICKET-031 (README)
+         │
+    TICKET-032 (E2E con APIs reales)
 ```
 
 ---
@@ -953,34 +997,28 @@ SEMANA 1                          SEMANA 2               SEMANA 3
 
 ---
 
-## 🚀 Próximos pasos (al 2026-03-21)
+## 🚀 Próximos pasos (actualizado 2026-03-21)
 
-### Inmediatos (desbloquean el smoke test)
+### Completados ✅
 
-1. **Instalar dependencias de producción**
-   ```bash
-   pip install crewai>=0.80 langchain-aws>=0.2 langchain-openai>=0.2 \
-     tavily-python>=0.5 duckduckgo-search>=6.0 playwright openpyxl \
-     langchain-core boto3 rich httpx beautifulsoup4 rapidfuzz unidecode pyyaml
-   playwright install chromium
-   ```
+| Ticket | Tarea |
+|--------|-------|
+| T027 | `output_agent.py` — `run_log_{timestamp}.json` generado |
+| T030 | Smoke test infraestructura lista (venv, Chromium, .env, dry-run OK) |
 
-2. **Configurar `.env`** con al menos `OPENAI_API_KEY` para el smoke test local
+### Activos / En progreso
 
-3. **Smoke test** (TICKET-030):
-   ```bash
-   python main.py --config tests/fixtures/smoke_config.yaml --max-leads 5 --llm openai
-   ```
+| Ticket | Tarea | Prioridad |
+|--------|-------|-----------|
+| T031 | README para el equipo de ventas | P2 |
+| T032 | E2E real con Tavily + Google Maps (necesita API keys) | P1 |
 
-### Pendientes cortos
+### Pendientes
 
 | Ticket | Tarea | Prioridad |
 |--------|-------|-----------|
 | T026 | `test_excel_tool.py` — validación E2E del Excel con 20 leads | P0 |
-| T027 | `output_agent.py` — generar `run_log_{timestamp}.json` | P2 |
 | T029 | Tests de integración de agentes (LLM mockeado) | P1 |
-| T030 | Smoke test end-to-end | P1 |
-| T031 | README para el equipo de ventas | P2 |
 
 ### Estado del código (35 archivos creados) ✅
 
