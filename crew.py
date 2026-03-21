@@ -109,6 +109,9 @@ class ProspectingCrew:
             # ── PASO 7: Qualify ────────────────────────────────────
             qualified = self._run_qualifier(profiled)
 
+            # ── Checkpoint: save intermediate results after each iteration
+            self._save_checkpoint(qualified, iteration)
+
             hot_warm = sum(1 for l in qualified if l.tier in ("HOT", "WARM"))
             console.print(f"  [bold]HOT+WARM: {hot_warm} / target: {target}[/bold]")
 
@@ -177,6 +180,29 @@ class ProspectingCrew:
 
     def _run_qualifier(self, profiled: list[ProfiledLead]) -> list[QualifiedLead]:
         return QualifierAgent.process(profiled, self.config, self.llm)
+
+    def _save_checkpoint(self, leads: list[QualifiedLead], iteration: int) -> None:
+        """Persist a JSON checkpoint after each qualifying step."""
+        import json
+        from pathlib import Path
+
+        checkpoint_path = Path("output") / f"checkpoint_iter{iteration}.json"
+        checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+        data = [
+            {
+                "name": l.name,
+                "tier": l.tier,
+                "final_score": l.final_score,
+                "contact_priority": l.contact_priority,
+                "phone": l.phone,
+                "address": l.address,
+                "source": l.source,
+            }
+            for l in leads
+        ]
+        with open(checkpoint_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        console.print(f"[dim]  💾 Checkpoint → {checkpoint_path}[/dim]")
 
 
 # ──────────────────────────────────────────────────────────────────

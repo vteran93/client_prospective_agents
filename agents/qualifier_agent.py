@@ -79,14 +79,27 @@ class QualifierAgent:
 
         # Sort by final_score descending, assign contact_priority
         qualified.sort(key=lambda l: l.final_score, reverse=True)
+
+        # Cap COLD leads — keep only the top-scoring ones up to max_cold
+        max_cold = self.qual_config.max_cold
+        hot_warm = [l for l in qualified if l.tier in ("HOT", "WARM")]
+        cold_leads = [l for l in qualified if l.tier == "COLD"]
+        if len(cold_leads) > max_cold:
+            discarded = len(cold_leads) - max_cold
+            cold_leads = cold_leads[:max_cold]
+            console.print(
+                f"[dim]  ℹ {discarded} leads COLD descartados (max_cold={max_cold})[/dim]"
+            )
+        qualified = hot_warm + cold_leads
+
         for idx, lead in enumerate(qualified, start=1):
             lead.contact_priority = idx
 
         hot = sum(1 for l in qualified if l.tier == "HOT")
         warm = sum(1 for l in qualified if l.tier == "WARM")
-        cold = sum(1 for l in qualified if l.tier == "COLD")
+        cold = len(cold_leads)
         console.print(
-            f"[green]  ✓ QualifierAgent: {hot} HOT · {warm} WARM · {cold} COLD"
+            f"[green]  ✓ QualifierAgent: {hot} HOT · {warm} WARM · {cold} COLD[/green]"
         )
         return qualified
 

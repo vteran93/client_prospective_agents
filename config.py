@@ -109,6 +109,7 @@ def load_config(path: str, overrides: Optional[dict] = None) -> SearchConfig:
             min_score_hot=qual_section.get("min_score_hot", 8.0),
             min_score_warm=qual_section.get("min_score_warm", 5.0),
             target_hot_warm=qual_section.get("target_hot_warm", 80),
+            max_cold=qual_section.get("max_cold", 10),
         ),
     }
 
