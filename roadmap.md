@@ -3,8 +3,8 @@
 **Framework**: CrewAI · Bedrock/OpenAI · Google Maps · Tavily/Brave · Excel Output  
 **PM Owner**: TBD  
 **Fecha base**: 2026-03-21  
-**Última actualización**: 2026-03-21  
-**Estimación total**: ~13 días de desarrollo (1 desarrollador senior full-time)  
+**Última actualización**: 2026-03-22  
+**Estimación total**: ~16 días de desarrollo (1 desarrollador senior full-time)  
 **Estado actual**: 🟢 EP-0 → EP-4 + EP-6 COMPLETADOS · Pendiente: EP-5 (Excel E2E), README, E2E real con APIs
 
 ---
@@ -21,7 +21,8 @@
 | [EP-5](#ep-5--output--excel) | Output & Excel | 2 tickets | 1.0 d | 🔶 PENDIENTE |
 | [EP-6](#ep-6--testing--qa) | Testing & QA | 5 tickets | 2.0 d | 🔶 PARCIAL |
 | [EP-8](#ep-8--email-outreach-agent-standalone) | Email Outreach Agent (Standalone) | 8 tickets | 5.5 d | 🔴 NUEVO |
-| **Total** | | **44 tickets** | **~19 días** | |
+| [EP-9](#ep-9--route-planning--visitas-de-campo) | Route Planning & Visitas de Campo | 5 tickets | 3.0 d | 🔴 NUEVO |
+| **Total** | | **49 tickets** | **~22 días** | |
 
 ---
 
@@ -1696,6 +1697,356 @@ guardrails:
 
 ---
 
+## EP-9 · Route Planning & Visitas de Campo 🔴 NUEVO
+
+> **Objetivo**: Al finalizar el pipeline de prospección, planificar rutas óptimas de visita a los leads HOT y WARM usando la **Google Maps Routes API** (`computeRoutes` con `optimizeWaypointOrder`). Generar una hoja adicional en el Excel con el itinerario ordenado, tiempos estimados de viaje, y un link de Google Maps que el vendedor pueda abrir directamente en su celular para iniciar navegación turn-by-turn.
+
+### Arquitectura del Route Planner
+
+```
+crew.py (después de QualifierAgent, antes/durante OutputAgent)
+│
+├── tools/route_tool.py
+│     ├── RouteOptimizerTool (Google Routes API)
+│     │     POST routes.googleapis.com/directions/v2:computeRoutes
+│     │     └── optimizeWaypointOrder: true (TSP-like)
+│     └── build_google_maps_url()
+│           └── https://www.google.com/maps/dir/?api=1&origin=...&waypoints=...
+│
+├── agents/route_agent.py
+│     └── RouteAgent.process(leads, config, settings) -> RoutePlan
+│           ├── Filtra leads HOT+WARM con lat/lng válido
+│           ├── Agrupa leads por zona geográfica (si >25 waypoints)
+│           ├── Llama Routes API con optimizeWaypointOrder=true
+│           ├── Genera Google Maps deep links (max 9 waypoints por URL)
+│           └── Retorna RoutePlan con itinerario ordenado
+│
+├── models.py
+│     ├── RouteConfig (sección YAML)
+│     ├── RouteWaypoint
+│     └── RoutePlan
+│
+└── output → Excel hoja "RUTA" + Google Maps URL(s) en consola
+```
+
+### Notas técnicas clave de la API
+
+- **Routes API endpoint**: `POST https://routes.googleapis.com/directions/v2:computeRoutes`
+- **`optimizeWaypointOrder: true`**: Google resuelve el TSP (Traveling Salesman Problem) reordenando los `intermediates[]` para minimizar el costo total. Retorna `optimizedIntermediateWaypointIndex[]` con el orden óptimo.
+- **Límite**: máximo **25 waypoints intermedios** por request. Si hay más leads, se agrupan por zona.
+- **`X-Goog-FieldMask`**: solo pedir campos necesarios para reducir latencia y costo: `routes.legs.duration,routes.legs.distanceMeters,routes.legs.startLocation,routes.legs.endLocation,routes.optimizedIntermediateWaypointIndex`
+- **Google Maps URLs** (deep link a celular): `https://www.google.com/maps/dir/?api=1&origin=LAT,LNG&destination=LAT,LNG&waypoints=LAT,LNG|LAT,LNG&travelmode=driving&dir_action=navigate` — abre Google Maps en modo navegación. Límite: **9 waypoints** en URL para mobile, se generan múltiples URLs si necesario.
+- **Sin API key adicional**: usa la misma `GOOGLE_MAPS_API_KEY` del `.env` (requiere habilitar "Routes API" en Google Cloud Console).
+- **Pricing**: Routes API Compute Routes = $5 USD / 1000 requests (standard), $10 si `TRAFFIC_AWARE_OPTIMAL`. Para ~2 requests por run, costo despreciable.
+
+---
+
+### TICKET-045 · Modelos RouteConfig + RouteWaypoint + RoutePlan 🔶 PENDIENTE
+
+```
+Tipo:       feature
+Prioridad:  P1
+Est.:       2 h
+Deps.:      TICKET-002 (Modelos), TICKET-003 (Config)
+Estado:     PENDIENTE
+```
+
+**Descripción**  
+Agregar modelos Pydantic para route planning y nueva sección en el YAML de campaña. Agregar parsing en `config.py`.
+
+**Modelos en `models.py`:**
+```python
+class RouteConfig(BaseModel):
+    enabled: bool = False
+    origin_address: str = ""          # punto de partida del vendedor
+    origin_lat: float = 0.0
+    origin_lng: float = 0.0
+    travel_mode: Literal["DRIVE", "TWO_WHEELER", "WALK"] = "DRIVE"
+    departure_time: Optional[str] = None  # ISO 8601, ej: "2026-03-22T08:00:00-05:00"
+    max_waypoints_per_route: int = Field(default=25, ge=1, le=25)
+    tiers_to_visit: List[str] = Field(default_factory=lambda: ["HOT", "WARM"])
+
+class RouteWaypoint(BaseModel):
+    lead_name: str
+    address: str
+    lat: float
+    lng: float
+    place_id: str = ""
+    tier: str
+    contact_priority: int
+    final_score: float
+    phone: str = ""
+    visit_order: int = 0              # asignado por la optimización
+    estimated_arrival_minutes: float = 0.0
+
+class RoutePlan(BaseModel):
+    origin: str
+    waypoints: List[RouteWaypoint]    # ordenados por visit_order
+    total_distance_km: float = 0.0
+    total_duration_minutes: float = 0.0
+    google_maps_urls: List[str] = Field(default_factory=list)  # deep links para celular
+    route_groups: int = 1             # si >25 leads, cuántos grupos
+    generated_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+```
+
+**Sección YAML ejemplo (`search_config.yaml`):**
+```yaml
+route_planning:
+  enabled: true
+  origin_address: "Carrera 7 #72-13, Bogotá, Colombia"  # oficina del vendedor
+  origin_lat: 4.6533
+  origin_lng: -74.0553
+  travel_mode: "DRIVE"
+  departure_time: "2026-03-24T08:00:00-05:00"
+  max_waypoints_per_route: 25
+  tiers_to_visit:
+    - HOT
+    - WARM
+```
+
+**Criterios de aceptación**
+- [ ] `RouteConfig`, `RouteWaypoint`, `RoutePlan` en `models.py`
+- [ ] `SearchConfig.route_planning: Optional[RouteConfig] = None`
+- [ ] `config.py` carga la sección `route_planning` del YAML
+- [ ] Si `route_planning` no está en YAML, `config.route_planning` es `None` (retrocompatible)
+- [ ] Tests unitarios: config con/sin route_planning, validación de limits
+
+---
+
+### TICKET-046 · RouteOptimizerTool (Google Routes API) 🔶 PENDIENTE
+
+```
+Tipo:       feature
+Prioridad:  P1
+Est.:       4 h
+Deps.:      TICKET-045, TICKET-009 (Maps Tool pattern)
+Estado:     PENDIENTE
+```
+
+**Descripción**  
+Nuevo tool que llama a la Google Maps Routes API (`computeRoutes`) con `optimizeWaypointOrder: true` para encontrar el orden óptimo de visitas. Incluye helper para generar Google Maps deep links para celular.
+
+**Archivo:** `tools/route_tool.py`
+
+**Funciones principales:**
+```python
+def compute_optimized_route(
+    api_key: str,
+    origin: dict,           # {"lat": float, "lng": float}
+    waypoints: list[dict],  # [{"lat": float, "lng": float, "place_id": str}, ...]
+    travel_mode: str = "DRIVE",
+    departure_time: str | None = None,
+) -> dict:
+    """
+    Llama a Routes API computeRoutes con optimizeWaypointOrder=true.
+    Retorna: {
+        "optimized_order": [int],           # índices reordenados
+        "legs": [{"distance_m": int, "duration_s": int}, ...],
+        "total_distance_m": int,
+        "total_duration_s": int,
+    }
+    """
+
+def build_google_maps_url(
+    origin: dict,
+    waypoints: list[dict],  # ya ordenados
+    destination: dict | None = None,
+    travel_mode: str = "driving",
+) -> str:
+    """
+    Genera URL de Google Maps Directions con waypoints.
+    Si >9 waypoints, genera múltiples URLs.
+    URL format: https://www.google.com/maps/dir/?api=1&origin=LAT,LNG
+                &destination=LAT,LNG&waypoints=LAT,LNG|LAT,LNG&travelmode=driving
+    No requiere API key.
+    """
+```
+
+**Criterios de aceptación**
+- [ ] `compute_optimized_route()` llama `POST routes.googleapis.com/directions/v2:computeRoutes`
+- [ ] Request usa `optimizeWaypointOrder: true` y `X-Goog-FieldMask` minimal
+- [ ] Soporta waypoints por `location` (lat/lng) y opcionalmente `placeId`
+- [ ] Retorna `optimized_order` con los índices reordenados
+- [ ] Retorna distancia/duración por leg y totales
+- [ ] Maneja error si Routes API no está habilitada (HTTP 403) con mensaje claro
+- [ ] `build_google_maps_url()` genera URLs válidos con `dir_action=navigate` para turn-by-turn
+- [ ] Si hay >9 waypoints, genera múltiples URLs (cada uno con max 9 waypoints)
+- [ ] URLs usan `place_id` cuando disponible via `waypoint_place_ids` param
+- [ ] Rate limiting (misma GOOGLE_MAPS_API_KEY)
+- [ ] **Sin dependencia de crewai** (igual que `dedup_tool.py` y `excel_tool.py`)
+- [ ] Tests unitarios con response mockeado
+
+---
+
+### TICKET-047 · RouteAgent: optimización de rutas de visita 🔶 PENDIENTE
+
+```
+Tipo:       feature
+Prioridad:  P1
+Est.:       3 h
+Deps.:      TICKET-045, TICKET-046
+Estado:     PENDIENTE
+```
+
+**Descripción**  
+Nuevo agente que toma los leads calificados y genera un `RoutePlan` optimizado. Filtra por tier, valida coordenadas, agrupa si necesario, y genera el itinerario final.
+
+**Archivo:** `agents/route_agent.py`
+
+**Pseudocódigo:**
+```python
+class RouteAgent:
+    @staticmethod
+    def process(
+        leads: list[QualifiedLead],
+        config: SearchConfig,
+        settings: AppSettings,
+    ) -> RoutePlan | None:
+        route_cfg = config.route_planning
+        if not route_cfg or not route_cfg.enabled:
+            return None
+
+        # 1. Filtrar leads por tier y coordenadas válidas
+        visitable = [
+            l for l in leads
+            if l.tier in route_cfg.tiers_to_visit
+            and l.lat != 0.0 and l.lng != 0.0
+        ]
+
+        # 2. Ordenar por contact_priority (mejor primero)
+        visitable.sort(key=lambda l: l.contact_priority)
+
+        # 3. Si >25 leads, tomar top-25 por priority (API limit)
+        #    Futuro: agrupar por zona geográfica con k-means
+        if len(visitable) > route_cfg.max_waypoints_per_route:
+            visitable = visitable[:route_cfg.max_waypoints_per_route]
+
+        # 4. Llamar Routes API
+        origin = {"lat": route_cfg.origin_lat, "lng": route_cfg.origin_lng}
+        waypoints_input = [
+            {"lat": l.lat, "lng": l.lng, "place_id": l.place_id}
+            for l in visitable
+        ]
+        result = compute_optimized_route(
+            api_key=settings.google_maps_api_key,
+            origin=origin,
+            waypoints=waypoints_input,
+            travel_mode=route_cfg.travel_mode,
+            departure_time=route_cfg.departure_time,
+        )
+
+        # 5. Reordenar leads según optimized_order
+        optimized = [visitable[i] for i in result["optimized_order"]]
+
+        # 6. Crear RouteWaypoint list con visit_order y tiempos
+        # 7. Generar Google Maps URL(s)
+        # 8. Retornar RoutePlan
+```
+
+**Criterios de aceptación**
+- [ ] `RouteAgent.process()` → `RoutePlan | None`
+- [ ] Retorna `None` si route_planning no está habilitado o no hay leads visitables
+- [ ] Filtra leads sin coordenadas (lat=0, lng=0)
+- [ ] Si hay 0 leads visitables, retorna `None` con warning en consola
+- [ ] Respeta `max_waypoints_per_route` (default 25, max API)
+- [ ] Usa `contact_priority` para decidir qué leads incluir si hay >25
+- [ ] Genera `google_maps_urls` — múltiples si >9 waypoints
+- [ ] Cada `RouteWaypoint` tiene `visit_order` (1-indexed) y `estimated_arrival_minutes`
+- [ ] Log con Rich: `"🗺️ Ruta optimizada: N paradas, X km, Y min"`
+- [ ] Manejo de errores: si API falla, log warning y retornar `None` (no romper el pipeline)
+
+---
+
+### TICKET-048 · Excel hoja "RUTA" + output consola con links móvil 🔶 PENDIENTE
+
+```
+Tipo:       feature
+Prioridad:  P1
+Est.:       3 h
+Deps.:      TICKET-047, TICKET-012 (Excel Tool)
+Estado:     PENDIENTE
+```
+
+**Descripción**  
+Agregar una 6ª hoja al Excel de salida con el itinerario de visitas optimizado. Mostrar el Google Maps link en consola para que el vendedor lo copie/envíe a su celular.
+
+**Hoja "RUTA" — Columnas:**
+
+| # | Columna | Fuente |
+|---|---------|--------|
+| 1 | `Orden de Visita` | `RouteWaypoint.visit_order` |
+| 2 | `Negocio` | `RouteWaypoint.lead_name` |
+| 3 | `Dirección` | `RouteWaypoint.address` |
+| 4 | `Teléfono` | `RouteWaypoint.phone` |
+| 5 | `Tier` | `RouteWaypoint.tier` (color coded: HOT=verde, WARM=amarillo) |
+| 6 | `Score` | `RouteWaypoint.final_score` |
+| 7 | `Distancia al siguiente` | leg.distanceMeters formateado (ej: "3.2 km") |
+| 8 | `Tiempo al siguiente` | leg.duration formateado (ej: "12 min") |
+| 9 | `Hora estimada de llegada` | acumulado desde departure_time |
+| 10 | `Google Maps` | hyperlink a la ubicación individual |
+
+**Output en consola (Rich):**
+```
+🗺️ RUTA OPTIMIZADA — 12 paradas · 47.3 km · 1h 38min
+────────────────────────────────────────────────────
+ 1. Taller AutoMax (HOT · 8.2) — Cra 15 #45-23
+ 2. MecánicaExpress (WARM · 6.7) — Cll 72 #10-45
+ ...
+────────────────────────────────────────────────────
+📱 Google Maps (abrir en celular):
+   Ruta 1 (paradas 1-9):  https://www.google.com/maps/dir/?api=1&...
+   Ruta 2 (paradas 10-12): https://www.google.com/maps/dir/?api=1&...
+```
+
+**Criterios de aceptación**
+- [ ] Hoja "RUTA" en el Excel con las 10 columnas definidas
+- [ ] Header color: `#BDD7EE` (azul claro)
+- [ ] Columna "Tier" con color de fondo condicional (HOT=verde, WARM=amarillo)
+- [ ] Columna "Google Maps" como hyperlink clickeable en Excel
+- [ ] Fila final de totales: distancia total, tiempo total
+- [ ] Si `RoutePlan` es `None`, no se genera la hoja (no romper el Excel)
+- [ ] Output Rich en consola con el resumen y URLs
+- [ ] URLs en consola son copiables (Rich `console.print` con markup desactivado para URLs)
+- [ ] Tests: Excel con hoja RUTA, Excel sin hoja RUTA (route_planning disabled)
+
+---
+
+### TICKET-049 · Integrar RouteAgent en crew.py (paso 8b) 🔶 PENDIENTE
+
+```
+Tipo:       feature
+Prioridad:  P1
+Est.:       1 h
+Deps.:      TICKET-047, TICKET-048
+Estado:     PENDIENTE
+```
+
+**Descripción**  
+Integrar el RouteAgent como paso 8b en el pipeline de `crew.py`, entre la calificación y el OutputAgent. Pasar el `RoutePlan` al `OutputAgent` para incluirlo en el Excel y en el `run_log`.
+
+**Cambios en `crew.py`:**
+```python
+# ── PASO 8a: Route Planning (opcional) ─────────────────────
+route_plan = None
+if self.config.route_planning and self.config.route_planning.enabled:
+    from agents.route_agent import RouteAgent
+    route_plan = RouteAgent.process(qualified, self.config, self.settings)
+
+# ── PASO 8b: Output ────────────────────────────────────────
+report = RunReport(...)
+OutputAgent.process(qualified, report, self.config, self.settings, route_plan=route_plan)
+```
+
+**Criterios de aceptación**
+- [ ] `RouteAgent.process()` se llama solo si `route_planning.enabled`
+- [ ] `RoutePlan` se pasa a `OutputAgent.process()` como kwarg opcional
+- [ ] Si RouteAgent falla (returns None o exception), el pipeline continúa normalmente
+- [ ] `RoutePlan` metadata se incluye en `run_log_*.json`: `route_plan_summary` con total_distance, total_duration, num_stops, google_maps_urls
+- [ ] Si `route_planning` no está en config, todo funciona exactamente igual (retrocompatible)
+- [ ] 55/55 tests existentes siguen pasando sin cambios
+
+---
+
 ## Dependencias Visuales
 
 ```
@@ -1755,6 +2106,18 @@ TICKET-001 (Setup)
     TICKET-038 + 040 ─────── TICKET-044 (LLM Guardrails: input/output sanitization)
                                    │
                               TICKET-043 (Tests unitarios email agent + guardrails)
+
+    ── EP-9: Route Planning & Visitas de Campo ──
+
+    TICKET-002 (Modelos) + TICKET-003 (Config) ─── TICKET-045 (RouteConfig + models)
+                                                         │
+    TICKET-009 (Maps Tool) ──────────────────────── TICKET-046 (RouteOptimizerTool)
+                                                         │
+    TICKET-045 + TICKET-046 ─────────────────────── TICKET-047 (RouteAgent)
+                                                         │
+    TICKET-012 (Excel) + TICKET-047 ────────────── TICKET-048 (Excel hoja RUTA + console)
+                                                         │
+    TICKET-047 + TICKET-048 ─────────────────────── TICKET-049 (Integrar en crew.py)
 ```
 
 ---
@@ -1807,6 +2170,9 @@ SEMANA 1                          SEMANA 2               SEMANA 3
 | R12 | Prompt injection via email reply (prospecto o atacante manipula LLM) | Alta | Crítico | T044: Guardrails AI input/output guards + system prompt hardening + estado "suspicious" + BanSubstrings configurable |
 | R13 | Exfiltración de API keys/env vars via LLM output | Media | Crítico | T044: Output guard con regex para patrones de API keys (sk-, AKIA, AIza) + BanSubstrings de nombres de env vars |
 | R14 | Race condition en state JSON con múltiples instancias | Media | Medio | T042: `fcntl.flock()` file locking + state aislado por campaign_name |
+| R15 | Routes API no habilitada en Google Cloud Console del usuario | Alta | Bajo | T046: detectar HTTP 403 y mostrar mensaje claro con link a la consola para habilitar. Route planning es opcional, no rompe el pipeline |
+| R16 | >25 leads HOT+WARM excede límite API de waypoints intermedios | Media | Bajo | T047: truncar a top-25 por `contact_priority`. Futuro: agrupación por zonas geográficas |
+| R17 | Google Maps URL excede 2048 chars o 9 waypoints mobile limit | Baja | Bajo | T046: `build_google_maps_url()` genera múltiples URLs si >9 waypoints |
 
 ---
 
@@ -1844,8 +2210,13 @@ SEMANA 1                          SEMANA 2               SEMANA 3
 | T042 | Standalone CLI (`email_agent.py`) + state persistence + multi-instancia | P0 |
 | T043 | Tests unitarios del Email Agent + guardrails | P1 |
 | T044 | LLM Guardrails: input/output sanitization (`guardrails-ai`) | P0 |
+| T045 | RouteConfig + RouteWaypoint + RoutePlan models (EP-9) | P1 |
+| T046 | RouteOptimizerTool: Google Routes API + Maps URL builder | P1 |
+| T047 | RouteAgent: optimización de rutas de visita | P1 |
+| T048 | Excel hoja "RUTA" + output consola con links móvil | P1 |
+| T049 | Integrar RouteAgent en crew.py (paso 8b) | P1 |
 
-### Estado del código (35 archivos creados + EP-8 diseñado) ✅
+### Estado del código (35 archivos creados + EP-8/EP-9 diseñados) ✅
 
 ```
 client_prospective_agents/
@@ -1869,4 +2240,11 @@ client_prospective_agents/
 ├── prompts/email_reply_classifier_prompt.py 🔶 (T038)
 ├── prompts/email_followup_prompt.py       🔶 (T038)
 └── tests/test_email_*.py                  🔶 (T043)
+```
+
+**Nuevos archivos EP-9 (por crear):**
+```
+├── tools/route_tool.py                    🔶 (T046) — Google Routes API + Maps URL builder
+├── agents/route_agent.py                  🔶 (T047) — Optimización de rutas de visita
+└── tests/test_route_tool.py               🔶 (T046) — Tests unitarios route tool
 ```
