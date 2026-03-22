@@ -47,8 +47,6 @@ from models import (
 
 console = Console()
 
-_MAX_ITERATIONS = 3
-
 
 class ProspectingCrew:
     """
@@ -59,7 +57,7 @@ class ProspectingCrew:
     def __init__(self, config: SearchConfig, settings: AppSettings) -> None:
         self.config = config
         self.settings = settings
-        self.llm: BaseChatModel = get_llm(settings)
+        self.llm: BaseChatModel = get_llm(settings, provider=config.llm_provider)
 
     # ──────────────────────────────────────────────────────────────
     # Entry point
@@ -74,11 +72,13 @@ class ProspectingCrew:
         iterations = 0
 
         target = self.config.qualification.target_hot_warm
+        max_leads = self.config.max_leads
+        max_iters = self.config.max_iterations
         qualified: list[QualifiedLead] = []
 
-        for iteration in range(1, _MAX_ITERATIONS + 1):
+        for iteration in range(1, max_iters + 1):
             iterations = iteration
-            console.rule(f"[bold cyan]Iteración {iteration}/{_MAX_ITERATIONS}")
+            console.rule(f"[bold cyan]Iteración {iteration}/{max_iters}")
 
             # ── PASO 1+2: Search + Maps (parallel) ─────────────────
             new_search, new_maps = self._run_discovery(all_raw)
@@ -109,17 +109,30 @@ class ProspectingCrew:
             # ── PASO 7: Qualify ────────────────────────────────────
             qualified = self._run_qualifier(profiled)
 
-            hot_warm = sum(1 for l in qualified if l.tier in ("HOT", "WARM"))
-            console.print(f"  [bold]HOT+WARM: {hot_warm} / target: {target}[/bold]")
+            # ── Checkpoint: save intermediate results after each iteration
+            self._save_checkpoint(qualified, iteration)
 
-            if hot_warm >= target:
-                console.print("[green]  ✓ Target alcanzado — saliendo del loop")
+            total_unique = len(qualified)
+            hot_warm = sum(1 for l in qualified if l.tier in ("HOT", "WARM"))
+            console.print(
+                f"  [bold]Leads: {total_unique}/{max_leads} · "
+                f"HOT+WARM: {hot_warm}/{target}[/bold]"
+            )
+
+            if total_unique >= max_leads:
+                console.print("[green]  ✓ max_leads alcanzado — saliendo del loop")
                 break
 
-            if iteration < _MAX_ITERATIONS:
+            if hot_warm >= target:
                 console.print(
-                    f"[yellow]  ↩ No se alcanzó el target ({hot_warm}/{target}). "
-                    "Generando nuevas queries en la próxima iteración..."
+                    "[green]  ✓ Target HOT+WARM alcanzado — saliendo del loop"
+                )
+                break
+
+            if iteration < max_iters:
+                console.print(
+                    f"[yellow]  ↩ Leads {total_unique}/{max_leads}, "
+                    f"HOT+WARM {hot_warm}/{target}. Próxima iteración..."
                 )
 
         # ── PASO 8: Output ──────────────────────────────────────────
@@ -177,6 +190,29 @@ class ProspectingCrew:
 
     def _run_qualifier(self, profiled: list[ProfiledLead]) -> list[QualifiedLead]:
         return QualifierAgent.process(profiled, self.config, self.llm)
+
+    def _save_checkpoint(self, leads: list[QualifiedLead], iteration: int) -> None:
+        """Persist a JSON checkpoint after each qualifying step."""
+        import json
+        from pathlib import Path
+
+        checkpoint_path = Path("output") / f"checkpoint_iter{iteration}.json"
+        checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+        data = [
+            {
+                "name": l.name,
+                "tier": l.tier,
+                "final_score": l.final_score,
+                "contact_priority": l.contact_priority,
+                "phone": l.phone,
+                "address": l.address,
+                "source": l.source,
+            }
+            for l in leads
+        ]
+        with open(checkpoint_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        console.print(f"[dim]  💾 Checkpoint → {checkpoint_path}[/dim]")
 
 
 # ──────────────────────────────────────────────────────────────────

@@ -11,6 +11,7 @@ campaign:
   country: "Colombia"
   language: "es"
   max_leads: 150
+  max_iterations: 5
   sources:
     - google_maps   # Requiere GOOGLE_MAPS_API_KEY
     - tavily        # Requiere TAVILY_API_KEY

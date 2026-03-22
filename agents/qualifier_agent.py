@@ -86,7 +86,7 @@ class QualifierAgent:
         warm = sum(1 for l in qualified if l.tier == "WARM")
         cold = sum(1 for l in qualified if l.tier == "COLD")
         console.print(
-            f"[green]  ✓ QualifierAgent: {hot} HOT · {warm} WARM · {cold} COLD"
+            f"[green]  ✓ QualifierAgent: {hot} HOT · {warm} WARM · {cold} COLD[/green]"
         )
         return qualified
 
