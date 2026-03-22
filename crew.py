@@ -47,6 +47,7 @@ from models import (
 
 console = Console()
 
+
 class ProspectingCrew:
     """
     Main pipeline that takes a SearchConfig and produces a list of QualifiedLeads
@@ -123,7 +124,9 @@ class ProspectingCrew:
                 break
 
             if hot_warm >= target:
-                console.print("[green]  ✓ Target HOT+WARM alcanzado — saliendo del loop")
+                console.print(
+                    "[green]  ✓ Target HOT+WARM alcanzado — saliendo del loop"
+                )
                 break
 
             if iteration < max_iters:
