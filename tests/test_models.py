@@ -15,6 +15,7 @@ import pytest
 
 from models import (
     BusinessContext,
+    BusinessSummary,
     CommercialProfile,
     EnrichedLead,
     ProfiledLead,
@@ -224,6 +225,33 @@ class TestBusinessContext:
     def test_description_required(self):
         with pytest.raises(Exception):
             BusinessContext()
+
+
+class TestBusinessSummary:
+    def test_defaults(self):
+        bs = BusinessSummary()
+        assert bs.core_offering == ""
+        assert bs.target_sectors == []
+        assert bs.key_pain_points == []
+        assert bs.differentiators == []
+        assert bs.geographic_focus == ""
+        assert bs.ideal_customers == []
+        assert bs.raw_context == ""
+
+    def test_full_summary(self):
+        bs = BusinessSummary(
+            core_offering="Software de nómina",
+            target_sectors=["Construcción", "Distribución"],
+            key_pain_points=["Gestión manual de nómina"],
+            differentiators=["Integración ERP"],
+            geographic_focus="Bogotá, Colombia",
+            ideal_customers=["PYMEs", "Constructoras"],
+            raw_context="Contexto completo aquí",
+        )
+        assert bs.core_offering == "Software de nómina"
+        assert len(bs.target_sectors) == 2
+        assert len(bs.ideal_customers) == 2
+        assert "Contexto" in bs.raw_context
 
 
 class TestSearchConfig:

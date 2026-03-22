@@ -26,10 +26,23 @@ class QualificationConfig(BaseModel):
 
 class BusinessContext(BaseModel):
     """Contexto del negocio del usuario para auto-generación de queries (EP-7)."""
+
     description: str
     reference_urls: List[str] = Field(default_factory=list)
     target_audience: str = ""
     ideal_customers: List[str] = Field(default_factory=list)
+
+
+class BusinessSummary(BaseModel):
+    """Resumen estructurado generado por ContextAgent (T034)."""
+
+    core_offering: str = ""
+    target_sectors: List[str] = Field(default_factory=list)
+    key_pain_points: List[str] = Field(default_factory=list)
+    differentiators: List[str] = Field(default_factory=list)
+    geographic_focus: str = ""
+    ideal_customers: List[str] = Field(default_factory=list)
+    raw_context: str = ""
 
 
 class SearchConfig(BaseModel):

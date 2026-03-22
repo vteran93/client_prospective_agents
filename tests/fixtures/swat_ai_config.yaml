@@ -3,8 +3,8 @@ campaign:
   city: "Bogotá"
   country: "Colombia"
   language: "es"
-  max_leads: 100
-  max_iterations: 5
+  max_leads: 20
+  max_iterations: 2
   sources:
     - duckduckgo
   scrape_websites: true

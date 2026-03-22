@@ -100,7 +100,10 @@ def main() -> None:
     info = Table.grid(padding=(0, 2))
     info.add_row("[bold]Campaña[/bold]", config.campaign_name)
     info.add_row("[bold]Ciudad[/bold]", config.city)
-    info.add_row("[bold]Queries[/bold]", str(len(config.queries)))
+    info.add_row(
+        "[bold]Queries[/bold]",
+        str(len(config.queries)) if config.queries else "auto-generadas",
+    )
     info.add_row("[bold]Fuentes[/bold]", ", ".join(config.sources))
     info.add_row("[bold]Max leads[/bold]", str(config.max_leads))
     info.add_row(
@@ -108,6 +111,15 @@ def main() -> None:
     )
     info.add_row("[bold]LLM provider[/bold]", config.llm_provider)
     info.add_row("[bold]Scrape sitios[/bold]", "✓" if config.scrape_websites else "✗")
+    if config.business_context:
+        info.add_row(
+            "[bold]Business context[/bold]",
+            config.business_context.description[:60] + "...",
+        )
+        info.add_row(
+            "[bold]Clientes ideales[/bold]",
+            str(len(config.business_context.ideal_customers)),
+        )
     console.print(
         Panel(info, title="[bold]Configuración de campaña[/bold]", border_style="cyan")
     )

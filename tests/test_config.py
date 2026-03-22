@@ -72,9 +72,15 @@ class TestBusinessContextConfig:
         assert cfg.campaign_name == "Business Context Only Campaign"
         assert cfg.queries == []
         assert cfg.business_context is not None
-        assert cfg.business_context.description == "Empresa de consultoría de ventas para PYMEs en Colombia"
+        assert (
+            cfg.business_context.description
+            == "Empresa de consultoría de ventas para PYMEs en Colombia"
+        )
         assert len(cfg.business_context.reference_urls) == 1
-        assert cfg.business_context.target_audience == "Dueños y gerentes de PYMEs de servicios en Bogotá"
+        assert (
+            cfg.business_context.target_audience
+            == "Dueños y gerentes de PYMEs de servicios en Bogotá"
+        )
         assert len(cfg.business_context.ideal_customers) == 2
 
     def test_smoke_config_no_business_context(self):

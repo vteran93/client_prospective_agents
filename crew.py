@@ -25,11 +25,13 @@ from typing import Sequence
 from langchain_core.language_models import BaseChatModel
 from rich.console import Console
 
+from agents.context_agent import ContextAgent
 from agents.enrichment_agent import EnrichmentAgent
 from agents.maps_agent import MapsAgent
 from agents.output_agent import OutputAgent
 from agents.profiler_agent import ProfilerAgent
 from agents.qualifier_agent import QualifierAgent
+from agents.query_generator_agent import QueryGeneratorAgent
 from agents.scraper_agent import ScraperAgent
 from agents.search_agent import SearchAgent
 from agents.visit_timing_agent import VisitTimingAgent
@@ -76,6 +78,13 @@ class ProspectingCrew:
         max_iters = self.config.max_iterations
         qualified: list[QualifiedLead] = []
 
+        # ── PASO 0: Auto-generación de queries (EP-7) ──────────
+        if self.config.business_context and not self.config.queries:
+            console.rule("[bold magenta]Paso 0 · Auto Query Generation")
+            summary = ContextAgent.process(self.config, self.settings, self.llm)
+            generated = QueryGeneratorAgent.process(summary, self.config, self.llm)
+            self.config.queries = generated
+
         for iteration in range(1, max_iters + 1):
             iterations = iteration
             console.rule(f"[bold cyan]Iteración {iteration}/{max_iters}")
@@ -99,6 +108,13 @@ class ProspectingCrew:
 
             # ── PASO 4: Enrich + Dedup ─────────────────────────────
             enriched = self._run_enrichment(all_raw)
+
+            # Cap to max_leads before expensive LLM steps
+            if len(enriched) > max_leads:
+                enriched = enriched[:max_leads]
+                console.print(
+                    f"[dim]  ✂ Leads recortados a {max_leads} antes de profiling"
+                )
 
             # ── PASO 5+6: Timing + Profiler (parallel) ─────────────
             timing_map, profiled = self._run_timing_and_profiling(enriched)
