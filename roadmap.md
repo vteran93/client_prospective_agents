@@ -900,15 +900,15 @@ python main.py --config tests/fixtures/e2e_config.yaml --max-leads 20 --llm open
 ```
 
 **Criterios de aceptación**
-- [ ] Pipeline completa sin crash (exit code 0)
-- [ ] Al menos 5 leads encontrados y guardados en el Excel
-- [ ] Excel generado en `output/` con al menos 1 fila en hoja HOT o WARM
-- [ ] `run_log_*.json` generado con `leads_summary` no vacío
-- [ ] Columnas CONTACTO: nombre, teléfono o dirección presentes en ≥ 50% de los leads
-- [ ] Columnas PERFIL HORMOZI: `hormozi_score` calculado (> 0) en todos los leads
-- [ ] Columnas TIMING: `timing_summary` presente en todos los leads
-- [ ] Duración total < 300 segundos para 20 leads
-- [ ] Sin errores `LLMCallError` ni `ValidationError` no controlados en el log
+- [X] Pipeline completa sin crash (exit code 0)
+- [X] Al menos 5 leads encontrados y guardados en el Excel
+- [X] Excel generado en `output/` con al menos 1 fila en hoja HOT o WARM
+- [X] `run_log_*.json` generado con `leads_summary` no vacío
+- [X] Columnas CONTACTO: nombre, teléfono o dirección presentes en ≥ 50% de los leads
+- [X] Columnas PERFIL HORMOZI: `hormozi_score` calculado (> 0) en todos los leads
+- [X] Columnas TIMING: `timing_summary` presente en todos los leads
+- [-] Duración total < 300 segundos para 20 leads
+- [X] Sin errores `LLMCallError` ni `ValidationError` no controlados en el log
 
 **Config de prueba:** `tests/fixtures/e2e_config.yaml`  
 **Output esperado:** `output/e2e_talleres_bogota_YYYYMMDD_HHmmss.xlsx`
@@ -977,6 +977,79 @@ campaign:
 - Si hay ambos (`queries` + `business_context`), el sistema usa queries como base y genera adicionales
 - `ideal_customers` es **List[str]** (no str) para soportar múltiples perfiles de cliente ideal
 - Si la lista está vacía, el ContextAgent pide al LLM que los infiera a partir de `description` + `target_audience` + contenido scrapeado
+
+---
+
+### TICKET-033.1 Pruebas end2end con los siguientes archivos
+
+
+# Saireh.com Recursos humanos 
+```yml
+campaign:
+  name: "Leads SAIREH Nómina Colombia Q1-2026"
+  city: "Bogotá"
+  country: "Colombia"
+  language: "es"
+  max_leads: 100
+  max_iterations: 5
+  business_context:
+    description: >
+      SAIREH Colombia es una empresa especializada en software de nómina asistido y
+      outsourcing de nómina para empresas colombianas. Su plataforma web está parametrizada
+      según el Código Sustantivo del Trabajo y las leyes laborales vigentes en Colombia,
+      garantizando trazabilidad, eficiencia y apego legal. Ofrecen dos modalidades:
+      Sistema Nómina Asistido (SaaS) y Outsourcing de Nómina completo. El servicio incluye
+      asistencia permanente de consultores especializados, soporte técnico, más de 60
+      funciones integradas (contratos, liquidaciones, cesantías, PILA, nómina electrónica
+      DIAN, retención en la fuente, provisiones, etc.) e integración con ERPs como
+      Microsoft Dynamics Business Central 365. Ayudan a las organizaciones a tercerizar
+      sus operaciones de nómina reduciendo riesgos y evitando sanciones por
+      inconsistencias en la liquidación de seguridad social.
+    reference_urls:
+      - "https://saireh.com/col/"
+    target_audience: "Gerentes de RRHH, directores administrativos y dueños de empresas medianas en Colombia que necesitan automatizar su gestión de nómina y cumplir con la normatividad laboral vigente"
+    ideal_customers:
+      - "Distribuidora o mayorista de consumo masivo con procesos de ventas y logística"
+      - "Comercio o tienda por departamento, supermercado o mayorista ferretero"
+      - "Hotel, restaurante, panadería o complejo turístico"
+      - "Manufacturera del sector plástico, metal-mecánica o alimentos procesados"
+      - "Constructora o empresa contratista de obras civiles"
+      - "Empresa de servicios con 20-200 empleados que gestiona nómina manualmente o con Excel"
+      - "PYME en crecimiento que necesita tercerizar la gestión de nómina y obligaciones laborales"
+```
+
+# Victor Terán SWAT AI Enginner 
+```yml
+campaign:
+  name: "Leads SWAT AI Rescue Q1-2026"
+  city: "Bogotá"
+  country: "Colombia"
+  language: "es"
+  max_leads: 100
+  max_iterations: 5
+  business_context:
+    description: >
+      Victor Terán es un consultor independiente de ingeniería SWAT especializado en
+      rescate de sistemas técnicos en crisis e integración de IA. Su servicio principal
+      es un engagement de 90 días llamado "SWAT AI Rescue" donde entra a empresas medianas
+      y grandes con deuda técnica crítica, backlog estancado o necesidad urgente de
+      modernización con inteligencia artificial. Entrega diagnóstico, estabilización,
+      implementación de IA y transferencia completa de conocimiento al equipo interno.
+      Cuenta con 9 años de experiencia, certificación AWS y Maestría en IA. Precios
+      desde $18,000 hasta $58,000 USD por engagement con garantía de resultado.
+    reference_urls:
+      - "https://www.linkedin.com/in/victor-ter%C3%A1n/"
+    target_audience: "CTOs, VPs de Engineering y fundadores técnicos de empresas medianas y grandes en Colombia y LatAm con deuda técnica, backlog crítico o necesidad de modernización con IA"
+    ideal_customers:
+      - "Fintech con equipo de 20-200 ingenieros y deuda técnica acumulada"
+      - "Startup post-Serie B con backlog crítico de producto estancado"
+      - "Empresa de software SaaS con sistemas legacy que necesitan modernización"
+      - "Corporativo con iniciativa de transformación digital e integración de IA"
+      - "Scale-up tecnológica con problemas de rendimiento o estabilidad en producción"
+      - "Empresa mediana con equipo de ingeniería sin liderazgo técnico senior"
+```
+
+
 
 ---
 

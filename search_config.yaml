@@ -21,6 +21,17 @@ campaign:
   scraper_concurrency: 8
   output_filename: "prospectos_talleres_bogota"
 
+  # business_context — alternativa a queries: describe tu negocio y el LLM
+  # genera las queries automáticamente (EP-7). Puedes usar ambos a la vez.
+  # business_context:
+  #   description: "Empresa de consultoría de ventas para PYMEs en Colombia"
+  #   reference_urls:
+  #     - "https://www.growthguard.co"
+  #   target_audience: "Dueños y gerentes de PYMEs de servicios en Bogotá"
+  #   ideal_customers:
+  #     - "Talleres mecánicos con 5-20 empleados"
+  #     - "Clínicas veterinarias independientes"
+
 llm:
   provider: bedrock          # bedrock | openai
   primary_model: "anthropic.claude-3-5-sonnet-20241022-v2:0"

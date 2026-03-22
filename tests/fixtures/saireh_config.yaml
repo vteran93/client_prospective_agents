@@ -1,0 +1,45 @@
+campaign:
+  name: "Leads SAIREH Nómina Colombia Q1-2026"
+  city: "Bogotá"
+  country: "Colombia"
+  language: "es"
+  max_leads: 100
+  max_iterations: 5
+  sources:
+    - duckduckgo
+  scrape_websites: true
+  scraper_concurrency: 5
+  output_filename: "prospectos_saireh_nomina"
+  business_context:
+    description: >
+      SAIREH Colombia es una empresa especializada en software de nómina asistido y
+      outsourcing de nómina para empresas colombianas. Su plataforma web está parametrizada
+      según el Código Sustantivo del Trabajo y las leyes laborales vigentes en Colombia,
+      garantizando trazabilidad, eficiencia y apego legal. Ofrecen dos modalidades:
+      Sistema Nómina Asistido (SaaS) y Outsourcing de Nómina completo. El servicio incluye
+      asistencia permanente de consultores especializados, soporte técnico, más de 60
+      funciones integradas (contratos, liquidaciones, cesantías, PILA, nómina electrónica
+      DIAN, retención en la fuente, provisiones, etc.) e integración con ERPs como
+      Microsoft Dynamics Business Central 365. Ayudan a las organizaciones a tercerizar
+      sus operaciones de nómina reduciendo riesgos y evitando sanciones por
+      inconsistencias en la liquidación de seguridad social.
+    reference_urls:
+      - "https://saireh.com/col/"
+    target_audience: "Gerentes de RRHH, directores administrativos y dueños de empresas medianas en Colombia que necesitan automatizar su gestión de nómina y cumplir con la normatividad laboral vigente"
+    ideal_customers:
+      - "Distribuidora o mayorista de consumo masivo con procesos de ventas y logística"
+      - "Comercio o tienda por departamento, supermercado o mayorista ferretero"
+      - "Hotel, restaurante, panadería o complejo turístico"
+      - "Manufacturera del sector plástico, metal-mecánica o alimentos procesados"
+      - "Constructora o empresa contratista de obras civiles"
+      - "Empresa de servicios con 20-200 empleados que gestiona nómina manualmente o con Excel"
+      - "PYME en crecimiento que necesita tercerizar la gestión de nómina y obligaciones laborales"
+
+llm:
+  provider: "openai"
+  temperature: 0.2
+
+qualification:
+  min_score_hot: 7.0
+  min_score_warm: 4.5
+  target_hot_warm: 15

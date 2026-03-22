@@ -1,0 +1,30 @@
+campaign:
+  name: "Business Context Only Campaign"
+  city: "Bogotá"
+  country: "Colombia"
+  language: "es"
+  max_leads: 10
+  max_iterations: 2
+  sources:
+    - duckduckgo
+  scrape_websites: false
+  scraper_concurrency: 2
+  output_filename: "bc_test"
+
+  business_context:
+    description: "Empresa de consultoría de ventas para PYMEs en Colombia"
+    reference_urls:
+      - "https://www.growthguard.co"
+    target_audience: "Dueños y gerentes de PYMEs de servicios en Bogotá"
+    ideal_customers:
+      - "Talleres mecánicos con 5-20 empleados"
+      - "Clínicas veterinarias independientes"
+
+llm:
+  provider: "openai"
+  temperature: 0.1
+
+qualification:
+  min_score_hot: 7.0
+  min_score_warm: 4.5
+  target_hot_warm: 5
