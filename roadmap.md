@@ -20,7 +20,8 @@
 | [EP-4](#ep-4--orquestación-crew) | Orquestación Crew | 2 tickets | 1.5 d | ✅ DONE |
 | [EP-5](#ep-5--output--excel) | Output & Excel | 2 tickets | 1.0 d | 🔶 PENDIENTE |
 | [EP-6](#ep-6--testing--qa) | Testing & QA | 5 tickets | 2.0 d | 🔶 PARCIAL |
-| **Total** | | **32 tickets** | **~13.5 días** | |
+| [EP-8](#ep-8--email-outreach-agent-standalone) | Email Outreach Agent (Standalone) | 7 tickets | 5.0 d | 🔴 NUEVO |
+| **Total** | | **43 tickets** | **~18.5 días** | |
 
 ---
 
@@ -1055,6 +1056,463 @@ PASO 1+2: Search + Maps (igual que antes, pero con queries enriquecidas)
 
 ---
 
+## EP-8 · Email Outreach Agent (Standalone) 🔴 NUEVO
+
+> **Objetivo**: Agente standalone que lee el Excel de prospectos generado por el pipeline principal, envía correos de primer contacto personalizados usando 3 frameworks de ventas (Challenger + Cardone + Og Mandino), monitorea respuestas via IMAP, clasifica intención con LLM, responde follow-ups y escala a gerencia cuando detecta interés real — incluyendo creación de eventos en Google Calendar.
+
+### Arquitectura del Email Agent
+
+```
+email_agent.py (CLI standalone)
+│
+├── email_config.yaml
+│     ├── smtp: host, port, user, password, tls
+│     ├── imap: host, port, user, password, folder
+│     ├── assistant: name, title, signature_html
+│     ├── escalation: management_emails[], calendar_id
+│     └── campaign: excel_path, max_emails_per_run, delay_between_sends
+│
+├── email_models.py (o sección en models.py)
+│     ├── EmailConfig (SMTP/IMAP/assistant/escalation)
+│     ├── EmailCampaignState (tracks all threads)
+│     ├── ConversationThread (per-lead state machine)
+│     └── ReplyClassification (LLM output model)
+│
+├── agents/
+│     ├── email_outreach_agent.py   → Lee Excel + genera HTML first-touch + envía SMTP
+│     ├── email_monitor_agent.py    → IMAP poll + LLM classify + auto-respond + trigger escalation
+│     └── email_escalation_agent.py → Forward a gerencia + Google Calendar event
+│
+├── prompts/
+│     ├── email_first_touch_prompt.py    → Challenger reframe + Cardone urgency + Og Mandino persuasion
+│     ├── email_reply_classifier_prompt.py → interested | not_interested | question | auto_reply | ooo
+│     └── email_followup_prompt.py       → Follow-up contextual según clasificación
+│
+└── state/
+      └── email_state_{campaign}.json    → Persistencia de threads y status
+```
+
+### Flujo del Email Agent
+
+```
+[1] OUTREACH (email_outreach_agent.py)
+    Excel → filtrar leads con email → por cada lead:
+      → LLM genera HTML personalizado (first-touch)
+      → SMTP send con rate limiting (delay configurable)
+      → Registrar en state: {lead_id, email, sent_at, status: "sent", thread_id}
+
+[2] MONITOR (email_monitor_agent.py) — ejecutar periódicamente (cron / --monitor flag)
+    IMAP connect → buscar emails nuevos → por cada respuesta:
+      → Match con thread existente (por email / subject / In-Reply-To)
+      → LLM clasifica: interested | not_interested | question | auto_reply | ooo
+      → Si interested → trigger escalation
+      → Si question → LLM genera follow-up HTML → SMTP send
+      → Si not_interested → marcar thread como "closed"
+      → Si auto_reply/ooo → re-schedule follow-up
+
+[3] ESCALATION (email_escalation_agent.py)
+    → Forward thread completo a management_emails[]
+    → LLM genera resumen ejecutivo del lead + contexto de la conversación
+    → Google Calendar API: crear evento "Llamada prospecto: {lead.name}"
+      con notas = resumen + datos del lead + pitch_hook
+    → Actualizar state: status = "escalated"
+```
+
+### Estado por thread (`ConversationThread`)
+
+```
+       ┌──────────┐
+       │  pending  │ (lead cargado del Excel, no enviado aún)
+       └────┬─────┘
+            │ send first-touch
+       ┌────▼─────┐
+       │   sent    │
+       └────┬─────┘
+            │ reply received
+       ┌────▼─────────┐
+       │  replied      │ ← LLM classifies
+       └──┬───┬───┬───┘
+          │   │   │
+   interested │   not_interested
+          │   │        │
+   ┌──────▼┐  │   ┌────▼──────┐
+   │escalated│ │   │  closed   │
+   └────────┘ │   └───────────┘
+              │
+         question / ooo
+              │
+       ┌──────▼──────┐
+       │ follow_up   │ → puede volver a "replied" si responden de nuevo
+       └─────────────┘
+```
+
+---
+
+### TICKET-037 · EmailConfig model + YAML + state models 🔶 PENDIENTE
+
+```
+Tipo:       feature
+Prioridad:  P1
+Est.:       3 h
+Deps.:      TICKET-002 (Modelos base)
+Estado:     PENDIENTE
+```
+
+**Descripción**  
+Crear los modelos Pydantic para la configuración del email agent y el state machine de conversaciones. Definir la estructura YAML de configuración standalone.
+
+**Ejemplo YAML (`email_config.yaml`):**
+```yaml
+smtp:
+  host: "smtp.gmail.com"
+  port: 587
+  user: "ventas@growthguard.co"
+  password_env: "SMTP_PASSWORD"   # lee de variable de entorno
+  use_tls: true
+
+imap:
+  host: "imap.gmail.com"
+  port: 993
+  user: "ventas@growthguard.co"
+  password_env: "IMAP_PASSWORD"
+  folder: "INBOX"
+  poll_interval_seconds: 300
+
+assistant:
+  name: "Carolina Méndez"
+  title: "Asesora de Crecimiento Comercial"
+  company: "Growth Guard"
+  signature_html: |
+    <p style="color:#666;font-size:12px;">
+      <strong>{name}</strong><br>
+      {title} · {company}<br>
+      <a href="https://growthguard.co">growthguard.co</a>
+    </p>
+
+escalation:
+  management_emails:
+    - "gerencia@growthguard.co"
+    - "director.ventas@growthguard.co"
+  google_calendar_id: "primary"
+  calendar_event_duration_minutes: 30
+
+campaign:
+  excel_path: "output/prospectos_talleres_bogota_20260321.xlsx"
+  sheet: "HOT"                    # hoja del Excel a procesar (HOT, WARM, TODOS)
+  max_emails_per_run: 20
+  delay_between_sends_seconds: 45
+  max_followups_per_thread: 3
+  followup_delay_days: 3
+
+llm:
+  provider: "openai"
+  temperature: 0.4                # más creativo para emails
+```
+
+**Criterios de aceptación**
+- [ ] `SmtpConfig`: host, port, user, `password_env` (nombre de env var, NO la contraseña directa), use_tls
+- [ ] `ImapConfig`: host, port, user, `password_env`, folder, poll_interval_seconds
+- [ ] `AssistantIdentity`: name, title, company, signature_html (template con `{name}`, `{title}`, `{company}`)
+- [ ] `EscalationConfig`: management_emails (List[str]), google_calendar_id, calendar_event_duration_minutes
+- [ ] `EmailCampaignConfig`: excel_path, sheet, max_emails_per_run, delay_between_sends_seconds, max_followups_per_thread, followup_delay_days
+- [ ] `EmailConfig` (raíz): smtp, imap, assistant, escalation, campaign, llm
+- [ ] `ConversationThread`: lead_name, lead_email, thread_id (UUID), status (Literal["pending", "sent", "replied", "follow_up", "escalated", "closed"]), messages (List[EmailMessage]), created_at, updated_at, reply_classification (Optional)
+- [ ] `EmailMessage`: direction (Literal["outbound", "inbound"]), subject, body_html, timestamp, message_id
+- [ ] `EmailCampaignState`: campaign_name, threads (Dict[str, ConversationThread]), started_at, last_poll_at
+- [ ] `ReplyClassification` (LLM output): intent (Literal["interested", "not_interested", "question", "auto_reply", "ooo"]), confidence (float 0-1), summary (str), suggested_action (str)
+- [ ] Las contraseñas NUNCA se almacenan en YAML ni en state — solo el nombre de la env var
+- [ ] Archivo `email_config.example.yaml` con todos los campos documentados
+- [ ] Tests unitarios: validar que password_env resuelve contra os.environ
+
+**Notas técnicas**
+- Las contraseñas usan indirección via `password_env` para seguridad: el YAML dice `password_env: "SMTP_PASSWORD"` y el código lee `os.environ["SMTP_PASSWORD"]`
+- `thread_id` se genera como UUID v4 al crear el thread
+- `signature_html` es un template Python — se renderiza con `.format(name=..., title=..., company=...)`
+
+---
+
+### TICKET-038 · Email prompts (first-touch + classifier + follow-up) 🔶 PENDIENTE
+
+```
+Tipo:       feature
+Prioridad:  P1
+Est.:       3 h
+Deps.:      TICKET-037
+Estado:     PENDIENTE
+```
+
+**Descripción**  
+Crear los prompts LLM para las 3 etapas del email agent. Los emails deben sonar humanos, no genéricos, usando los 3 frameworks de ventas como base de la estrategia de persuasión.
+
+**Archivos:**
+- `prompts/email_first_touch_prompt.py`
+- `prompts/email_reply_classifier_prompt.py`
+- `prompts/email_followup_prompt.py`
+
+**Criterios de aceptación**
+
+**First-touch prompt:**
+- [ ] System prompt con instrucciones de los 3 frameworks combinados:
+  - **Challenger Sale**: reframe del problema del lead (usar `challenger_insight`), enseñar algo nuevo, generar tensión constructiva
+  - **Cardone** (Vendes o Vendes): urgencia de actuar ahora, lenguaje directo, preguntar por compromiso
+  - **Og Mandino** (El vendedor más grande del mundo): empatía genuina, servicio al prójimo, persistencia con dignidad
+- [ ] Variables del lead inyectadas: `lead_name`, `business_name`, `main_sector`, `pitch_hook`, `cardone_action_line`, `challenger_insight`, `cardone_objection`, `estimated_size`
+- [ ] Output: `EmailFirstTouchOutput` (Pydantic) con `subject` (str, max 60 chars), `body_html` (str, HTML completo con inline CSS), `preview_text` (str, max 90 chars)
+- [ ] El email NO debe parecer generado por IA — estilo conversacional colombiano, sin bullet points ni listas
+- [ ] Largo: 150-250 palabras máximo — respeto por el tiempo del prospecto
+- [ ] CTA: una sola pregunta abierta, no un link ni formulario
+
+**Reply classifier prompt:**
+- [ ] Input: email original enviado + respuesta del prospecto
+- [ ] Output: `ReplyClassification` con intent, confidence, summary, suggested_action
+- [ ] Clasificaciones: `interested` (quiere saber más, pide reunión, pregunta precio), `not_interested` (rechaza, pide no contactar), `question` (pregunta específica sin comprometerse), `auto_reply` (respuesta automática de correo), `ooo` (fuera de oficina)
+- [ ] Si `intent = "not_interested"` + pide no contactar → suggested_action = "remove_from_list"
+
+**Follow-up prompt:**
+- [ ] Contextual: recibe thread completo (mensajes previos + clasificación)
+- [ ] Si `question` → responde la pregunta + redirige a CTA
+- [ ] Si `ooo` → tono de paciencia (Og Mandino), mencionar que esperará
+- [ ] Si segundo follow-up sin respuesta → Cardone urgency escalation
+- [ ] Máximo 120 palabras en follow-ups
+- [ ] Output: `EmailFollowupOutput` con `subject` (puede ser Re: original), `body_html`
+
+**Notas técnicas**
+- Los emails van en HTML con inline CSS (no stylesheet externo) para compatibilidad máxima con clientes de email
+- El `body_html` incluye la firma del asistente al final (inyectada por el agent, no por el prompt)
+- Usar `{variables}` de Jinja-style en el prompt para inyectar datos del lead
+
+---
+
+### TICKET-039 · EmailOutreachAgent: Excel → LLM HTML → SMTP send 🔶 PENDIENTE
+
+```
+Tipo:       feature
+Prioridad:  P0
+Est.:       4 h
+Deps.:      TICKET-037, TICKET-038, TICKET-012 (Excel Tool)
+Estado:     PENDIENTE
+```
+
+**Descripción**  
+Implementar el agente principal de outreach que lee el Excel de prospectos, genera emails personalizados con LLM y los envía via SMTP con rate limiting.
+
+**Archivo:** `agents/email_outreach_agent.py`
+
+**Criterios de aceptación**
+- [ ] `EmailOutreachAgent.run(config: EmailConfig, settings: AppSettings) -> EmailCampaignState`
+- [ ] Lee Excel con `openpyxl` desde `config.campaign.excel_path` + `config.campaign.sheet`
+- [ ] Filtra leads que tienen campo `email` no vacío
+- [ ] Por cada lead (hasta `max_emails_per_run`):
+  - Verifica en state que no se haya enviado ya (skip si `status != "pending"`)
+  - LLM genera email con `with_structured_output(EmailFirstTouchOutput)`
+  - Inyecta firma del asistente (`assistant.signature_html` renderizado)
+  - Envía via `smtplib.SMTP` con TLS
+  - Headers: `From: "{assistant.name}" <{smtp.user}>`, `Reply-To: {smtp.user}`, `X-Mailer: GrowthGuard-Agent/1.0`
+  - `Message-ID` generado como `<{uuid}@{domain}>`
+  - `sleep(delay_between_sends_seconds)` entre envíos
+  - Actualiza state: `status = "sent"`, `sent_at = now()`
+- [ ] Manejo de errores SMTP: si falla un envío, loguea warning y continúa con el siguiente
+- [ ] Al finalizar, guarda `email_state_{campaign}.json` en `output/`
+- [ ] Log Rich: tabla con resumen (enviados, saltados, errores, tiempo total)
+
+**Notas técnicas**
+- `smtplib.SMTP(host, port)` → `.starttls()` → `.login(user, password)` → `.sendmail()`
+- Passwords se leen de env vars: `os.environ[config.smtp.password_env]`
+- El `Message-ID` es crucial para el thread matching posterior en IMAP
+- HTML body se wrappea en MIME multipart (text/plain fallback + text/html)
+
+---
+
+### TICKET-040 · EmailMonitorAgent: IMAP poll → classify → respond 🔶 PENDIENTE
+
+```
+Tipo:       feature
+Prioridad:  P0
+Est.:       5 h
+Deps.:      TICKET-039
+Estado:     PENDIENTE
+```
+
+**Descripción**  
+Implementar el agente que monitorea el buzón IMAP, detecta respuestas a los emails enviados, las clasifica con LLM y genera respuestas automáticas o triggers de escalación.
+
+**Archivo:** `agents/email_monitor_agent.py`
+
+**Criterios de aceptación**
+- [ ] `EmailMonitorAgent.run(config: EmailConfig, state: EmailCampaignState, settings: AppSettings) -> EmailCampaignState`
+- [ ] Conecta a IMAP con SSL: `imaplib.IMAP4_SSL(host, port)` → `.login(user, password)`
+- [ ] Búsqueda: `UNSEEN` emails en `config.imap.folder`
+- [ ] Thread matching: por `In-Reply-To` header → match contra `Message-ID` de emails enviados; fallback: match por email remitente contra threads conocidos
+- [ ] Por cada reply matched:
+  - Extrae body text (decode MIME, strip HTML si es necesario)
+  - LLM clasifica con `with_structured_output(ReplyClassification)`
+  - Según `intent`:
+    - `interested` → trigger escalation (TICKET-041), mark thread "escalated"
+    - `not_interested` → mark thread "closed", si pidió no contactar → log "opt-out"
+    - `question` → LLM genera follow-up con `EmailFollowupOutput` → SMTP send → mark "follow_up"
+    - `auto_reply` / `ooo` → schedule re-check, NO responder
+  - Guarda el email inbound en `thread.messages[]`
+- [ ] Respeta `max_followups_per_thread` — si se alcanza, NO enviar más follow-ups
+- [ ] Modo daemon: si `--monitor` flag, loop cada `poll_interval_seconds`; si no, ejecuta una sola vez
+- [ ] Marca emails procesados como SEEN en IMAP
+- [ ] Guarda state actualizado al finalizar
+
+**Notas técnicas**
+- `imaplib` usa `IMAP4_SSL` para conexión segura
+- MIME parsing: `email.message_from_bytes()` → iterar `walk()` → extraer `text/plain` o `text/html`
+- Para HTML → texto plano: `BeautifulSoup(html, "html.parser").get_text()` (ya disponible como dependencia)
+- Los emails de autorreply suelen tener header `Auto-Submitted: auto-replied` — detectar para clasificación rápida
+
+---
+
+### TICKET-041 · EscalationAgent: management email + Google Calendar 🔶 PENDIENTE
+
+```
+Tipo:       feature
+Prioridad:  P1
+Est.:       4 h
+Deps.:      TICKET-040
+Estado:     PENDIENTE
+```
+
+**Descripción**  
+Implementar el agente de escalación que notifica a gerencia cuando un lead muestra interés real, incluyendo un resumen ejecutivo del lead y creación de evento en Google Calendar para follow-up presencial o llamada.
+
+**Archivo:** `agents/email_escalation_agent.py`
+
+**Criterios de aceptación**
+- [ ] `EscalationAgent.escalate(thread: ConversationThread, lead_data: dict, config: EmailConfig, llm) -> bool`
+- [ ] LLM genera `EscalationSummary` con:
+  - `lead_summary` (1 párrafo: quién es, qué negocio, por qué está interesado)
+  - `conversation_summary` (resumen de los emails intercambiados)
+  - `recommended_action` (llamar, visitar, enviar propuesta)
+  - `urgency` (alta/media/baja basado en el tono de la respuesta)
+- [ ] Email a gerencia:
+  - To: todos los `management_emails[]`
+  - Subject: `🔥 Lead interesado: {lead_name} — {business_name}`
+  - Body HTML: resumen ejecutivo + datos del lead (teléfono, dirección, sector, score) + historial de emails
+  - Reply-To: email del lead (para que gerencia pueda responder directo)
+- [ ] Google Calendar:
+  - Crear evento con Google Calendar API (`google-api-python-client`)
+  - Título: `📞 Contactar prospecto: {lead_name} ({business_name})`
+  - Fecha: siguiente día hábil a las 10:00 AM (o `best_call_time` si disponible del Excel)
+  - Duración: `calendar_event_duration_minutes` de config
+  - Descripción: resumen ejecutivo + pitch_hook + datos de contacto completos
+  - Invitados: `management_emails[]`
+  - Reminder: 30 minutos antes
+- [ ] Autenticación Google: OAuth2 via `credentials.json` (service account o desktop app flow)
+- [ ] Si Google Calendar falla (API no configurada, credenciales inválidas) → log warning, NO bloquear la escalación por email
+- [ ] Actualiza state del thread: `status = "escalated"`, `escalated_at = now()`
+
+**Notas técnicas**
+- Google Calendar API: `googleapiclient.discovery.build("calendar", "v3", credentials=creds)`
+- Credentials: soportar tanto service account JSON como OAuth2 desktop flow (para setup inicial)
+- El evento se crea en el calendario indicado por `google_calendar_id` (default: "primary")
+- Dependencias nuevas: `google-api-python-client`, `google-auth-oauthlib`
+
+---
+
+### TICKET-042 · Standalone CLI (`email_agent.py`) + state persistence 🔶 PENDIENTE
+
+```
+Tipo:       feature
+Prioridad:  P0
+Est.:       3 h
+Deps.:      TICKET-039, TICKET-040, TICKET-041
+Estado:     PENDIENTE
+```
+
+**Descripción**  
+Crear el entry point CLI standalone para el email agent con comandos para outreach, monitoreo y reporte de estado.
+
+**Archivo:** `email_agent.py` (raíz del proyecto)
+
+**Uso:**
+```bash
+# Enviar first-touch emails
+python email_agent.py --config email_config.yaml outreach
+
+# Monitorear respuestas (una sola vez)
+python email_agent.py --config email_config.yaml monitor
+
+# Monitorear respuestas (modo daemon, loop continuo)
+python email_agent.py --config email_config.yaml monitor --daemon
+
+# Ver estado de la campaña
+python email_agent.py --config email_config.yaml status
+
+# Dry-run: solo genera emails, no envía
+python email_agent.py --config email_config.yaml outreach --dry-run
+```
+
+**Criterios de aceptación**
+- [ ] `argparse` con subcommands: `outreach`, `monitor`, `status`
+- [ ] `outreach`: ejecuta `EmailOutreachAgent.run()`
+- [ ] `monitor`: ejecuta `EmailMonitorAgent.run()` una vez
+- [ ] `monitor --daemon`: ejecuta en loop con `poll_interval_seconds` entre ciclos
+- [ ] `status`: lee state JSON y muestra tabla Rich con conteo por status (pending, sent, replied, escalated, closed)
+- [ ] `--dry-run` en outreach: genera HTMLs y los guarda en `output/email_previews/` como archivos `.html` individuales, sin enviar
+- [ ] `--llm bedrock|openai` override del provider
+- [ ] State persistence: `output/email_state_{campaign_name}.json` — carga al inicio, guarda después de cada operación
+- [ ] Banner Rich al iniciar: nombre del asistente AI, campaña, total leads, status summary
+- [ ] Graceful shutdown en modo daemon: captura `SIGINT`/`SIGTERM` → guarda state → exit limpio
+- [ ] Log con Rich: cada email enviado/recibido/clasificado se muestra en consola en tiempo real
+
+**Notas técnicas**
+- El state JSON se carga con `json.load()` → `EmailCampaignState.model_validate(data)`
+- En modo daemon, usar `signal.signal(signal.SIGINT, handler)` para shutdown graceful
+- Los previews en `--dry-run` permiten al equipo revisar los emails antes del envío real
+- Reutilizar `llm_factory.py` existente para `get_llm()`
+
+---
+
+### TICKET-043 · Tests unitarios del Email Agent 🔶 PENDIENTE
+
+```
+Tipo:       chore
+Prioridad:  P1
+Est.:       3 h
+Deps.:      TICKET-037 al TICKET-042
+Estado:     PENDIENTE
+```
+
+**Descripción**  
+Tests unitarios para los modelos, prompts y agentes del email system con mocks de SMTP, IMAP y Google Calendar.
+
+**Criterios de aceptación**
+
+**test_email_models.py:**
+- [ ] EmailConfig carga desde YAML correctamente
+- [ ] `password_env` resuelve contra `os.environ`
+- [ ] ConversationThread state transitions: pending → sent → replied → escalated/closed
+- [ ] EmailCampaignState serializa/deserializa JSON roundtrip
+- [ ] AssistantIdentity renderiza firma HTML con variables
+
+**test_email_prompts.py:**
+- [ ] First-touch prompt genera HTML válido (no contiene `{variable}` sin resolver)
+- [ ] First-touch prompt respeta max 250 palabras
+- [ ] Reply classifier clasifica correctamente: reply interesado, reply rechazando, auto-reply, OOO
+
+**test_email_outreach.py (mocks):**
+- [ ] Mock SMTP: verifica que `sendmail()` se llama con headers correctos
+- [ ] Mock openpyxl: verifica lectura de leads desde Excel
+- [ ] Verifica rate limiting (delay entre envíos)
+- [ ] Leads sin email se saltan correctamente
+- [ ] State se actualiza de "pending" a "sent"
+
+**test_email_monitor.py (mocks):**
+- [ ] Mock IMAP: verifica thread matching por `In-Reply-To`
+- [ ] Mock LLM: verifica clasificación → acción correcta
+- [ ] `max_followups_per_thread` se respeta
+- [ ] Auto-reply no genera respuesta
+
+**Notas técnicas**
+- Usar `unittest.mock.patch` para `smtplib.SMTP`, `imaplib.IMAP4_SSL`
+- Mock LLM: `MagicMock` que retorna `ReplyClassification` / `EmailFirstTouchOutput` predefinidos
+- No necesita crewai instalado — el email agent es standalone puro
+
+---
+
 ## Dependencias Visuales
 
 ```
@@ -1096,6 +1554,22 @@ TICKET-001 (Setup)
     TICKET-034 (ContextAgent: scrape + resumen)
     TICKET-035 (QueryGeneratorAgent: LLM genera queries)
     TICKET-036 (Integrar en crew.py)
+
+    ── EP-8: Email Outreach Agent (Standalone) ──
+
+    TICKET-002 (Modelos) ─── TICKET-037 (EmailConfig + state models)
+                                   │
+                              TICKET-038 (Email prompts: first-touch, classifier, follow-up)
+                                   │
+    TICKET-012 (Excel) ────── TICKET-039 (EmailOutreachAgent: Excel → LLM HTML → SMTP)
+                                   │
+                              TICKET-040 (EmailMonitorAgent: IMAP poll → classify → respond)
+                                   │
+                              TICKET-041 (EscalationAgent: mgmt email + Google Calendar)
+                                   │
+    TICKET-039 + 040 + 041 ── TICKET-042 (Standalone CLI + state persistence)
+                                   │
+                              TICKET-043 (Tests unitarios email agent)
 ```
 
 ---
@@ -1141,6 +1615,10 @@ SEMANA 1                          SEMANA 2               SEMANA 3
 | R5 | LLM genera JSON no parseable en ProfilerAgent | Media | Medio | `with_structured_output` + Pydantic validation + retry 1x |
 | R6 | DuckDuckGo bloquea requests frecuentes | Alta | Bajo | Es solo modo dev; en prod se usa Tavily+Brave |
 | R7 | Sites con Cloudflare bloquean Playwright | Media | Bajo | Skip y marcar como `scrape_failed = True` en el lead |
+| R8 | Gmail bloquea envío masivo (SMTP) | Media | Alto | Rate limiting configurable, delay 45s+, máximo 20 emails/run. Considerar servicio transaccional (SendGrid/SES) a futuro |
+| R9 | IMAP thread matching impreciso | Media | Medio | Match por `In-Reply-To` header + fallback por email remitente + subject matching |
+| R10 | Google Calendar API requiere OAuth setup complejo | Media | Bajo | Soportar service account (más simple) + fallback: si Calendar falla, solo enviar email de escalación |
+| R11 | Emails generados por LLM suenan artificiales | Baja | Alto | Prompts con estilo colombiano explícito, límite de 250 palabras, --dry-run para revisión humana previa |
 
 ---
 
@@ -1170,8 +1648,15 @@ SEMANA 1                          SEMANA 2               SEMANA 3
 | T034 | ContextAgent: scrape URLs + resumen del negocio | P1 |
 | T035 | QueryGeneratorAgent: LLM genera queries automáticamente | P1 |
 | T036 | Integrar EP-7 en crew.py (paso 0 del pipeline) | P1 |
+| T037 | EmailConfig model + YAML + state models (EP-8) | P1 |
+| T038 | Email prompts: first-touch + classifier + follow-up | P1 |
+| T039 | EmailOutreachAgent: Excel → LLM HTML → SMTP send | P0 |
+| T040 | EmailMonitorAgent: IMAP poll → classify → respond | P0 |
+| T041 | EscalationAgent: management email + Google Calendar | P1 |
+| T042 | Standalone CLI (`email_agent.py`) + state persistence | P0 |
+| T043 | Tests unitarios del Email Agent | P1 |
 
-### Estado del código (35 archivos creados) ✅
+### Estado del código (35 archivos creados + EP-8 diseñado) ✅
 
 ```
 client_prospective_agents/
@@ -1183,5 +1668,16 @@ client_prospective_agents/
 ├── tools/  (8 archivos) ✅  (dedup_tool.py sin crewai dep)
 ├── prompts/(4 archivos) ✅
 ├── tests/               ✅  55/55 tests pasando
-└── output/.gitkeep      ✅
+├── output/.gitkeep      ✅
+│
+│   ─── Nuevos archivos EP-8 (por crear) ───
+├── email_agent.py           🔶 CLI standalone (T042)
+├── email_config.yaml        🔶 Config ejemplo (T037)
+├── agents/email_outreach_agent.py   🔶 (T039)
+├── agents/email_monitor_agent.py    🔶 (T040)
+├── agents/email_escalation_agent.py 🔶 (T041)
+├── prompts/email_first_touch_prompt.py    🔶 (T038)
+├── prompts/email_reply_classifier_prompt.py 🔶 (T038)
+├── prompts/email_followup_prompt.py       🔶 (T038)
+└── tests/test_email_*.py                  🔶 (T043)
 ```
