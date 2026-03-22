@@ -913,6 +913,148 @@ python main.py --config tests/fixtures/e2e_config.yaml --max-leads 20 --llm open
 
 ---
 
+## EP-7 · Auto Query Generation 🟡 NUEVO
+
+> Objetivo: que el usuario solo describa su negocio/producto y opcionalmente pase URLs de referencia. El sistema scrapea esas URLs, entiende el contexto del negocio y genera automáticamente las queries de búsqueda de leads. Las queries manuales en `campaign.queries` pasan a ser opcionales.
+
+---
+
+### TICKET-033 · Modelo BusinessContext + YAML config 🔶 PENDIENTE
+
+```
+Tipo:       feature
+Prioridad:  P1
+Est.:       2 h
+Deps.:      TICKET-002 (Modelos), TICKET-003 (Config)
+Estado:     PENDIENTE
+```
+
+**Descripción**  
+Agregar al YAML de campaña una sección `business_context` con la descripción formal del negocio/producto del usuario y URLs de referencia. Crear el modelo Pydantic correspondiente y hacer que `queries` sea opcional cuando `business_context` está presente.
+
+**Ejemplo YAML:**
+```yaml
+campaign:
+  name: "Talleres Bogotá Q1-2026"
+  city: "Bogotá"
+  country: "Colombia"
+  language: "es"
+  max_leads: 100
+  max_iterations: 5
+  # queries es OPCIONAL si business_context está presente
+  # queries: ["taller mecánico Bogotá"]
+  business_context:
+    description: >
+      Growth Guard es una consultora colombiana que vende programas de capacitación
+      en ventas para equipos comerciales de PYMES. Nuestro producto principal es un
+      curso intensivo de 8 semanas basado en la metodología Challenger Sale, diseñado
+      para dueños y gerentes comerciales de negocios de servicios (talleres, clínicas,
+      restaurantes, etc.) que quieran duplicar sus ventas en 90 días.
+    reference_urls:
+      - "https://growthguard.co/programa-ventas"
+      - "https://growthguard.co/casos-de-exito"
+    target_audience: "Dueños y gerentes de PYMES de servicios en Bogotá"
+    ideal_customer: "Taller mecánico, clínica odontológica, restaurante, salón de belleza con 5-50 empleados"
+```
+
+**Criterios de aceptación**
+- [ ] Modelo `BusinessContext` en `models.py`: `description` (str, requerido), `reference_urls` (List[str], opcional), `target_audience` (str, opcional), `ideal_customer` (str, opcional)
+- [ ] `SearchConfig.business_context` es `Optional[BusinessContext]`
+- [ ] `SearchConfig.queries` acepta lista vacía si `business_context` está presente (model_validator)
+- [ ] `config.py` carga la sección `business_context` del YAML
+- [ ] Tests unitarios: config con solo business_context (sin queries), config con ambos, config sin ninguno falla
+
+**Notas técnicas**
+- `queries` sigue siendo obligatorio si no hay `business_context` — el validator lo verifica
+- Si hay ambos (`queries` + `business_context`), el sistema usa queries como base y genera adicionales
+
+---
+
+### TICKET-034 · ContextAgent: scrape URLs de referencia + resumen del negocio 🔶 PENDIENTE
+
+```
+Tipo:       feature
+Prioridad:  P1
+Est.:       3 h
+Deps.:      TICKET-033, TICKET-011 (Scraper Tool)
+Estado:     PENDIENTE
+```
+
+**Descripción**  
+Nuevo agente que toma el `BusinessContext` del config, scrapea las `reference_urls` usando el `WebScraperTool` existente, y genera un resumen estructurado del negocio usando el LLM. Este resumen será el input del `QueryGeneratorAgent`.
+
+**Archivo:** `agents/context_agent.py`
+
+**Criterios de aceptación**
+- [ ] `ContextAgent.process(config, settings, llm) -> BusinessSummary`
+- [ ] Scrapea cada URL en `reference_urls` concurrentemente (reutiliza `WebScraperTool`)
+- [ ] Combina `description` + contenido scrapeado en un prompt al LLM
+- [ ] Modelo `BusinessSummary` (Pydantic): `core_offering` (str), `target_sectors` (List[str]), `key_pain_points` (List[str]), `differentiators` (List[str]), `geographic_focus` (str), `raw_context` (str, el texto combinado, max 3000 chars)
+- [ ] Usa `with_structured_output(BusinessSummary)` para parseo seguro
+- [ ] Si no hay `reference_urls` o el scrape falla, genera el resumen solo con la `description`
+- [ ] Timeout de 10s por URL scrapeada
+
+---
+
+### TICKET-035 · QueryGeneratorAgent: LLM genera queries automáticamente 🔶 PENDIENTE
+
+```
+Tipo:       feature
+Prioridad:  P1
+Est.:       2 h
+Deps.:      TICKET-034 (ContextAgent)
+Estado:     PENDIENTE
+```
+
+**Descripción**  
+Nuevo agente que toma el `BusinessSummary` y genera una lista de queries de búsqueda optimizadas para encontrar leads que sean clientes potenciales del negocio descrito.
+
+**Archivo:** `agents/query_generator_agent.py`  
+**Prompt:** `prompts/query_generator_prompt.py`
+
+**Criterios de aceptación**
+- [ ] `QueryGeneratorAgent.process(summary, config, llm) -> List[str]`
+- [ ] El prompt incluye: resumen del negocio, ciudad, país, idioma, target_audience, ideal_customer
+- [ ] Genera 10-20 queries diversas: variaciones geográficas, sinónimos del sector, búsquedas por dolor/necesidad, búsquedas por tipo de negocio
+- [ ] Si `config.queries` ya tiene valores, los combina (queries manuales primero + generadas)
+- [ ] Usa `with_structured_output` con un modelo `QueryList` (List[str])
+- [ ] Deduplica queries (case-insensitive, normalizado)
+- [ ] Reemplaza la expansion de queries existente en `SearchAgent._expand_queries()`: si hay `business_context`, usa las queries generadas; si no, mantiene el flujo actual
+
+---
+
+### TICKET-036 · Integrar EP-7 en crew.py (paso 0 del pipeline) 🔶 PENDIENTE
+
+```
+Tipo:       feature
+Prioridad:  P1
+Est.:       1 h
+Deps.:      TICKET-034, TICKET-035
+Estado:     PENDIENTE
+```
+
+**Descripción**  
+Integrar ContextAgent + QueryGeneratorAgent como "Paso 0" del pipeline en `crew.py`, antes del loop de iteraciones. El flujo actualizado:
+
+```
+PASO 0: (solo si business_context presente)
+  → ContextAgent scrapea URLs + genera BusinessSummary
+  → QueryGeneratorAgent genera queries → se inyectan en config.queries
+
+PASO 1+2: Search + Maps (igual que antes, pero con queries enriquecidas)
+... resto del pipeline sin cambios
+```
+
+**Criterios de aceptación**
+- [ ] `crew.py`: si `config.business_context` existe, ejecutar paso 0 antes del loop
+- [ ] Las queries generadas se loguean en consola (Rich): `"🧠 Queries auto-generadas: N"`
+- [ ] Si `business_context` no existe, el pipeline funciona exactamente igual que hoy
+- [ ] Las queries generadas se incluyen en el `run_log_*.json` bajo `auto_generated_queries`
+- [ ] Retrocompatibilidad total: configs sin `business_context` funcionan sin cambios
+- [ ] El `BusinessSummary` se incluye en el `run_log` para auditoría
+
+---
+
 ## Dependencias Visuales
 
 ```
@@ -949,6 +1091,11 @@ TICKET-001 (Setup)
     TICKET-031 (README)
          │
     TICKET-032 (E2E con APIs reales)
+         │
+    TICKET-033 (Modelo + Config BusinessContext)
+    TICKET-034 (ContextAgent: scrape + resumen)
+    TICKET-035 (QueryGeneratorAgent: LLM genera queries)
+    TICKET-036 (Integrar en crew.py)
 ```
 
 ---
@@ -1019,6 +1166,10 @@ SEMANA 1                          SEMANA 2               SEMANA 3
 |--------|-------|-----------|
 | T026 | `test_excel_tool.py` — validación E2E del Excel con 20 leads | P0 |
 | T029 | Tests de integración de agentes (LLM mockeado) | P1 |
+| T033 | Modelo BusinessContext + YAML config (EP-7) | P1 |
+| T034 | ContextAgent: scrape URLs + resumen del negocio | P1 |
+| T035 | QueryGeneratorAgent: LLM genera queries automáticamente | P1 |
+| T036 | Integrar EP-7 en crew.py (paso 0 del pipeline) | P1 |
 
 ### Estado del código (35 archivos creados) ✅
 
