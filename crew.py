@@ -47,9 +47,6 @@ from models import (
 
 console = Console()
 
-_MAX_ITERATIONS = 3
-
-
 class ProspectingCrew:
     """
     Main pipeline that takes a SearchConfig and produces a list of QualifiedLeads
@@ -74,11 +71,13 @@ class ProspectingCrew:
         iterations = 0
 
         target = self.config.qualification.target_hot_warm
+        max_leads = self.config.max_leads
+        max_iters = self.config.max_iterations
         qualified: list[QualifiedLead] = []
 
-        for iteration in range(1, _MAX_ITERATIONS + 1):
+        for iteration in range(1, max_iters + 1):
             iterations = iteration
-            console.rule(f"[bold cyan]Iteración {iteration}/{_MAX_ITERATIONS}")
+            console.rule(f"[bold cyan]Iteración {iteration}/{max_iters}")
 
             # ── PASO 1+2: Search + Maps (parallel) ─────────────────
             new_search, new_maps = self._run_discovery(all_raw)
@@ -112,17 +111,25 @@ class ProspectingCrew:
             # ── Checkpoint: save intermediate results after each iteration
             self._save_checkpoint(qualified, iteration)
 
+            total_unique = len(qualified)
             hot_warm = sum(1 for l in qualified if l.tier in ("HOT", "WARM"))
-            console.print(f"  [bold]HOT+WARM: {hot_warm} / target: {target}[/bold]")
+            console.print(
+                f"  [bold]Leads: {total_unique}/{max_leads} · "
+                f"HOT+WARM: {hot_warm}/{target}[/bold]"
+            )
 
-            if hot_warm >= target:
-                console.print("[green]  ✓ Target alcanzado — saliendo del loop")
+            if total_unique >= max_leads:
+                console.print("[green]  ✓ max_leads alcanzado — saliendo del loop")
                 break
 
-            if iteration < _MAX_ITERATIONS:
+            if hot_warm >= target:
+                console.print("[green]  ✓ Target HOT+WARM alcanzado — saliendo del loop")
+                break
+
+            if iteration < max_iters:
                 console.print(
-                    f"[yellow]  ↩ No se alcanzó el target ({hot_warm}/{target}). "
-                    "Generando nuevas queries en la próxima iteración..."
+                    f"[yellow]  ↩ Leads {total_unique}/{max_leads}, "
+                    f"HOT+WARM {hot_warm}/{target}. Próxima iteración..."
                 )
 
         # ── PASO 8: Output ──────────────────────────────────────────

@@ -100,6 +100,7 @@ def load_config(path: str, overrides: Optional[dict] = None) -> SearchConfig:
         "country": campaign.get("country", "Colombia"),
         "language": campaign.get("language", "es"),
         "max_leads": campaign.get("max_leads", 150),
+        "max_iterations": campaign.get("max_iterations", 3),
         "sources": campaign.get("sources", ["duckduckgo"]),
         "scrape_websites": campaign.get("scrape_websites", True),
         "scraper_concurrency": campaign.get("scraper_concurrency", 8),

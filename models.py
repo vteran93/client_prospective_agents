@@ -31,6 +31,7 @@ class SearchConfig(BaseModel):
     country: str = "Colombia"
     language: str = "es"
     max_leads: int = Field(gt=0, default=150)
+    max_iterations: int = Field(default=3, ge=1, le=20)
     sources: List[str] = Field(default_factory=lambda: ["duckduckgo"])
     scrape_websites: bool = True
     scraper_concurrency: int = Field(default=8, ge=1, le=50)

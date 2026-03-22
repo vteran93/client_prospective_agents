@@ -6,6 +6,7 @@ campaign:
   country: "Colombia"
   language: "es"
   max_leads: 5
+  max_iterations: 1
   sources:
     - duckduckgo
   scrape_websites: false
