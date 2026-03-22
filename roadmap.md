@@ -956,19 +956,27 @@ campaign:
       - "https://growthguard.co/programa-ventas"
       - "https://growthguard.co/casos-de-exito"
     target_audience: "Dueños y gerentes de PYMES de servicios en Bogotá"
-    ideal_customer: "Taller mecánico, clínica odontológica, restaurante, salón de belleza con 5-50 empleados"
+    # ideal_customers es OPCIONAL — si no se provee, el LLM los genera en T034
+    ideal_customers:
+      - "Taller mecánico con 5-50 empleados"
+      - "Clínica odontológica"
+      - "Restaurante de barrio"
+      - "Salón de belleza"
 ```
 
 **Criterios de aceptación**
-- [ ] Modelo `BusinessContext` en `models.py`: `description` (str, requerido), `reference_urls` (List[str], opcional), `target_audience` (str, opcional), `ideal_customer` (str, opcional)
+- [ ] Modelo `BusinessContext` en `models.py`: `description` (str, requerido), `reference_urls` (List[str], opcional), `target_audience` (str, opcional), `ideal_customers` (List[str], opcional — **plural, lista**)
 - [ ] `SearchConfig.business_context` es `Optional[BusinessContext]`
 - [ ] `SearchConfig.queries` acepta lista vacía si `business_context` está presente (model_validator)
 - [ ] `config.py` carga la sección `business_context` del YAML
-- [ ] Tests unitarios: config con solo business_context (sin queries), config con ambos, config sin ninguno falla
+- [ ] Si `ideal_customers` no se provee en YAML, queda como lista vacía — el ContextAgent (T034) los genera con LLM
+- [ ] Tests unitarios: config con solo business_context (sin queries), config con ambos, config sin ninguno falla, config sin ideal_customers
 
 **Notas técnicas**
 - `queries` sigue siendo obligatorio si no hay `business_context` — el validator lo verifica
 - Si hay ambos (`queries` + `business_context`), el sistema usa queries como base y genera adicionales
+- `ideal_customers` es **List[str]** (no str) para soportar múltiples perfiles de cliente ideal
+- Si la lista está vacía, el ContextAgent pide al LLM que los infiera a partir de `description` + `target_audience` + contenido scrapeado
 
 ---
 
@@ -991,10 +999,13 @@ Nuevo agente que toma el `BusinessContext` del config, scrapea las `reference_ur
 - [ ] `ContextAgent.process(config, settings, llm) -> BusinessSummary`
 - [ ] Scrapea cada URL en `reference_urls` concurrentemente (reutiliza `WebScraperTool`)
 - [ ] Combina `description` + contenido scrapeado en un prompt al LLM
-- [ ] Modelo `BusinessSummary` (Pydantic): `core_offering` (str), `target_sectors` (List[str]), `key_pain_points` (List[str]), `differentiators` (List[str]), `geographic_focus` (str), `raw_context` (str, el texto combinado, max 3000 chars)
+- [ ] Modelo `BusinessSummary` (Pydantic): `core_offering` (str), `target_sectors` (List[str]), `key_pain_points` (List[str]), `differentiators` (List[str]), `geographic_focus` (str), `ideal_customers` (List[str]), `raw_context` (str, el texto combinado, max 3000 chars)
+- [ ] **Si `business_context.ideal_customers` está vacío**: el LLM los genera como parte del `BusinessSummary`. El prompt pide al LLM que infiera 5-10 perfiles de cliente ideal basándose en `description`, `target_audience`, y contenido scrapeado
+- [ ] **Si `business_context.ideal_customers` tiene valores**: se copian directamente al `BusinessSummary.ideal_customers` sin gastar tokens de LLM en inferirlos
 - [ ] Usa `with_structured_output(BusinessSummary)` para parseo seguro
 - [ ] Si no hay `reference_urls` o el scrape falla, genera el resumen solo con la `description`
 - [ ] Timeout de 10s por URL scrapeada
+- [ ] Log Rich: si ideal_customers fue generado por LLM, mostrar `"🧠 Clientes ideales inferidos por LLM: N perfiles"`
 
 ---
 
@@ -1016,7 +1027,7 @@ Nuevo agente que toma el `BusinessSummary` y genera una lista de queries de bús
 
 **Criterios de aceptación**
 - [ ] `QueryGeneratorAgent.process(summary, config, llm) -> List[str]`
-- [ ] El prompt incluye: resumen del negocio, ciudad, país, idioma, target_audience, ideal_customer
+- [ ] El prompt incluye: resumen del negocio, ciudad, país, idioma, target_audience, ideal_customers (lista completa del BusinessSummary)
 - [ ] Genera 10-20 queries diversas: variaciones geográficas, sinónimos del sector, búsquedas por dolor/necesidad, búsquedas por tipo de negocio
 - [ ] Si `config.queries` ya tiene valores, los combina (queries manuales primero + generadas)
 - [ ] Usa `with_structured_output` con un modelo `QueryList` (List[str])
