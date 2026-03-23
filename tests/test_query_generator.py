@@ -20,6 +20,7 @@ from models import BusinessSummary, SearchConfig
 
 # ── Helpers ───────────────────────────────────────────────────────
 
+
 def _make_summary(
     core_offering: str = "Software de nómina",
     ideal_customers: list[str] | None = None,
@@ -62,6 +63,7 @@ def _mock_llm_failing() -> MagicMock:
 
 
 # ── Tests ─────────────────────────────────────────────────────────
+
 
 class TestQueryGeneratorBasic:
     def test_generates_queries_from_llm(self):

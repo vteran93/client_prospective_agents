@@ -19,6 +19,7 @@ from models import BusinessContext, BusinessSummary, SearchConfig
 
 # ── Helpers ───────────────────────────────────────────────────────
 
+
 def _make_config(
     description: str = "Software de nómina",
     ideal_customers: list[str] | None = None,
@@ -58,6 +59,7 @@ def _mock_settings() -> MagicMock:
 
 
 # ── Tests ─────────────────────────────────────────────────────────
+
 
 class TestContextAgentNoBusinessContext:
     def test_returns_empty_summary(self):

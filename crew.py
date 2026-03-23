@@ -201,7 +201,12 @@ class ProspectingCrew:
             timing_f = executor.submit(
                 VisitTimingAgent.process, enriched, self.llm, self.settings
             )
-            profiler_f = executor.submit(ProfilerAgent.process, enriched, self.llm)
+            profiler_f = executor.submit(
+                ProfilerAgent.process,
+                enriched,
+                self.llm,
+                self.config.business_context,
+            )
             return timing_f.result(), profiler_f.result()
 
     def _run_qualifier(self, profiled: list[ProfiledLead]) -> list[QualifiedLead]:
