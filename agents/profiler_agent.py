@@ -39,9 +39,7 @@ def _build_seller_context(bc: BusinessContext | None) -> str:
     if bc.target_audience:
         parts.append(f"Audiencia objetivo: {bc.target_audience}")
     if bc.ideal_customers:
-        parts.append(
-            "Clientes ideales: " + "; ".join(bc.ideal_customers[:5])
-        )
+        parts.append("Clientes ideales: " + "; ".join(bc.ideal_customers[:5]))
     return "\n".join(parts)
 
 

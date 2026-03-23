@@ -19,6 +19,7 @@ from models import BusinessContext
 
 # ── _build_seller_context ─────────────────────────────────────────
 
+
 class TestBuildSellerContext:
     def test_none_returns_empty(self):
         from agents.profiler_agent import _build_seller_context
@@ -68,6 +69,7 @@ class TestBuildSellerContext:
 
 # ── build_profiler_messages ───────────────────────────────────────
 
+
 class TestBuildProfilerMessages:
     def test_default_no_seller_context(self):
         from prompts.profiler_prompt import build_profiler_messages
@@ -89,12 +91,13 @@ class TestBuildProfilerMessages:
     def test_system_prompt_mentions_seller(self):
         from prompts.profiler_prompt import build_profiler_messages
 
-        msgs = build_profiler_messages('{}')
+        msgs = build_profiler_messages("{}")
         system = msgs[0]["content"]
         assert "servicio/producto" in system or "vendedor" in system
 
 
 # ── ProfilerAgent with business_context ───────────────────────────
+
 
 class TestProfilerAgentSellerContext:
     def test_process_without_business_context(self):
@@ -181,6 +184,8 @@ class TestProfilerAgentSellerContext:
         # Verify build_profiler_messages was called with seller_context
         call_args = mock_build.call_args
         assert "seller_context" in call_args.kwargs or len(call_args.args) > 1
-        seller_ctx = call_args.kwargs.get("seller_context", call_args.args[1] if len(call_args.args) > 1 else "")
+        seller_ctx = call_args.kwargs.get(
+            "seller_context", call_args.args[1] if len(call_args.args) > 1 else ""
+        )
         assert "SAIREH software de nómina" in seller_ctx
         assert "Audiencia objetivo: Gerentes de RRHH" in seller_ctx
