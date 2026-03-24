@@ -65,6 +65,11 @@ class SearchAgent:
         existing_names: set[str] = {_norm(l.name) for l in existing_leads if l.name}
 
         expanded = self._expand_queries()
+        # Cap total queries to avoid excessive search calls
+        max_queries = max(self.config.max_leads, 30)
+        if len(expanded) > max_queries:
+            expanded = expanded[:max_queries]
+            console.print(f"[dim]  ✂ Queries truncadas a {max_queries}")
         tools = self._build_tools()
 
         if not tools:
@@ -98,6 +103,11 @@ class SearchAgent:
     def _expand_queries(self) -> list[str]:
         city = self.config.city
         base = self.config.queries
+
+        if self.config.business_context:
+            ready_queries = list(dict.fromkeys(base))
+            console.print(f"[dim]  🧠 Queries pre-generadas: {len(ready_queries)}")
+            return ready_queries
 
         prompt = (
             f"Genera 3 variaciones de búsqueda para cada una de las siguientes consultas "

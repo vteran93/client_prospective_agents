@@ -19,10 +19,28 @@ from langchain_core.language_models import BaseChatModel
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
 
-from models import CommercialProfile, EnrichedLead, ProfiledLead, ProfilerLLMOutput
+from models import (
+    BusinessContext,
+    CommercialProfile,
+    EnrichedLead,
+    ProfiledLead,
+    ProfilerLLMOutput,
+)
 from prompts.profiler_prompt import build_profiler_messages
 
 console = Console()
+
+
+def _build_seller_context(bc: BusinessContext | None) -> str:
+    """Build a concise seller context string from BusinessContext."""
+    if not bc:
+        return ""
+    parts = [bc.description.strip()]
+    if bc.target_audience:
+        parts.append(f"Audiencia objetivo: {bc.target_audience}")
+    if bc.ideal_customers:
+        parts.append("Clientes ideales: " + "; ".join(bc.ideal_customers[:5]))
+    return "\n".join(parts)
 
 
 class ProfilerAgent:
@@ -33,12 +51,18 @@ class ProfilerAgent:
         cls,
         leads: Sequence[EnrichedLead],
         llm: BaseChatModel,
+        business_context: BusinessContext | None = None,
     ) -> list[ProfiledLead]:
-        agent = cls(llm)
+        agent = cls(llm, business_context)
         return agent.run(list(leads))
 
-    def __init__(self, llm: BaseChatModel) -> None:
+    def __init__(
+        self,
+        llm: BaseChatModel,
+        business_context: BusinessContext | None = None,
+    ) -> None:
         self.llm = llm
+        self.seller_context = _build_seller_context(business_context)
 
     # ──────────────────────────────────────────────────────────────
 
@@ -83,7 +107,10 @@ class ProfilerAgent:
             "sales_opportunity": lead.sales_opportunity,
         }
 
-        messages = build_profiler_messages(json.dumps(lead_dict, ensure_ascii=False))
+        messages = build_profiler_messages(
+            json.dumps(lead_dict, ensure_ascii=False),
+            seller_context=self.seller_context,
+        )
 
         profile = CommercialProfile()  # default fallback
 

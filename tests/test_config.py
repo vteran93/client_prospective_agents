@@ -64,3 +64,27 @@ class TestValidateApiKeys:
         settings = AppSettings(openai_api_key=None)
         with pytest.raises(ConfigError):
             validate_api_keys(cfg, settings)
+
+
+class TestBusinessContextConfig:
+    def test_load_business_context_from_yaml(self):
+        cfg = load_config(str(_FIXTURES / "business_context_config.yaml"))
+        assert cfg.campaign_name == "Business Context Only Campaign"
+        assert cfg.queries == []
+        assert cfg.business_context is not None
+        assert (
+            cfg.business_context.description
+            == "Empresa de consultoría de ventas para PYMEs en Colombia"
+        )
+        assert len(cfg.business_context.reference_urls) == 1
+        assert (
+            cfg.business_context.target_audience
+            == "Dueños y gerentes de PYMEs de servicios en Bogotá"
+        )
+        assert len(cfg.business_context.ideal_customers) == 2
+
+    def test_smoke_config_no_business_context(self):
+        """Retrocompatibilidad: config sin business_context sigue funcionando."""
+        cfg = load_config(str(_FIXTURES / "smoke_config.yaml"))
+        assert cfg.business_context is None
+        assert len(cfg.queries) > 0

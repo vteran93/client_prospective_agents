@@ -1,0 +1,41 @@
+campaign:
+  name: "Leads SWAT AI Rescue Q1-2026"
+  city: "Bogotá"
+  country: "Colombia"
+  language: "es"
+  max_leads: 20
+  max_iterations: 2
+  sources:
+    - duckduckgo
+  scrape_websites: true
+  scraper_concurrency: 5
+  output_filename: "prospectos_swat_ai_rescue"
+  business_context:
+    description: >
+      Victor Terán es un consultor independiente de ingeniería SWAT especializado en
+      rescate de sistemas técnicos en crisis e integración de IA. Su servicio principal
+      es un engagement de 90 días llamado "SWAT AI Rescue" donde entra a empresas medianas
+      y grandes con deuda técnica crítica, backlog estancado o necesidad urgente de
+      modernización con inteligencia artificial. Entrega diagnóstico, estabilización,
+      implementación de IA y transferencia completa de conocimiento al equipo interno.
+      Cuenta con 9 años de experiencia, certificación AWS y Maestría en IA. Precios
+      desde $18,000 hasta $58,000 USD por engagement con garantía de resultado.
+    reference_urls:
+      - "https://www.linkedin.com/in/victor-ter%C3%A1n/"
+    target_audience: "CTOs, VPs de Engineering y fundadores técnicos de empresas medianas y grandes en Colombia y LatAm con deuda técnica, backlog crítico o necesidad de modernización con IA"
+    ideal_customers:
+      - "Fintech con equipo de 20-200 ingenieros y deuda técnica acumulada"
+      - "Startup post-Serie B con backlog crítico de producto estancado"
+      - "Empresa de software SaaS con sistemas legacy que necesitan modernización"
+      - "Corporativo con iniciativa de transformación digital e integración de IA"
+      - "Scale-up tecnológica con problemas de rendimiento o estabilidad en producción"
+      - "Empresa mediana con equipo de ingeniería sin liderazgo técnico senior"
+
+llm:
+  provider: "openai"
+  temperature: 0.2
+
+qualification:
+  min_score_hot: 7.0
+  min_score_warm: 4.5
+  target_hot_warm: 15

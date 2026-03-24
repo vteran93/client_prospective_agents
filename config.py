@@ -15,7 +15,7 @@ from typing import Optional
 import yaml
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from models import QualificationConfig, SearchConfig
+from models import BusinessContext, QualificationConfig, SearchConfig
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -92,6 +92,7 @@ def load_config(path: str, overrides: Optional[dict] = None) -> SearchConfig:
     campaign = raw.get("campaign", {})
     llm_section = raw.get("llm", {})
     qual_section = raw.get("qualification", {})
+    bc_section = campaign.get("business_context")
 
     data: dict = {
         "campaign_name": campaign.get("name", "unnamed_campaign"),
@@ -112,6 +113,14 @@ def load_config(path: str, overrides: Optional[dict] = None) -> SearchConfig:
             target_hot_warm=qual_section.get("target_hot_warm", 80),
         ),
     }
+
+    if bc_section and isinstance(bc_section, dict):
+        data["business_context"] = BusinessContext(
+            description=bc_section.get("description", ""),
+            reference_urls=bc_section.get("reference_urls", []),
+            target_audience=bc_section.get("target_audience", ""),
+            ideal_customers=bc_section.get("ideal_customers", []),
+        )
 
     if overrides:
         for key, value in overrides.items():

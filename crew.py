@@ -24,18 +24,22 @@ from typing import Sequence
 
 from langchain_core.language_models import BaseChatModel
 from rich.console import Console
+from unidecode import unidecode
 
+from agents.context_agent import ContextAgent
 from agents.enrichment_agent import EnrichmentAgent
 from agents.maps_agent import MapsAgent
 from agents.output_agent import OutputAgent
 from agents.profiler_agent import ProfilerAgent
 from agents.qualifier_agent import QualifierAgent
+from agents.query_generator_agent import QueryGeneratorAgent
 from agents.scraper_agent import ScraperAgent
 from agents.search_agent import SearchAgent
 from agents.visit_timing_agent import VisitTimingAgent
 from config import AppSettings
 from llm_factory import get_llm
 from models import (
+    BusinessSummary,
     EnrichedLead,
     ProfiledLead,
     QualifiedLead,
@@ -67,6 +71,8 @@ class ProspectingCrew:
         start_time = time.monotonic()
 
         all_raw: list[RawLead] = []
+        auto_generated_queries: list[str] = []
+        business_summary: BusinessSummary | None = None
         leads_per_iter: list[int] = []
         error_log: list[dict[str, str]] = []
         iterations = 0
@@ -75,6 +81,26 @@ class ProspectingCrew:
         max_leads = self.config.max_leads
         max_iters = self.config.max_iterations
         qualified: list[QualifiedLead] = []
+
+        # ── PASO 0: Auto-generación de queries (EP-7) ──────────
+        if self.config.business_context:
+            console.rule("[bold magenta]Paso 0 · Auto Query Generation")
+            manual_queries = list(self.config.queries)
+            business_summary = ContextAgent.process(self.config, self.settings, self.llm)
+            self.config.queries = QueryGeneratorAgent.process(
+                business_summary,
+                self.config,
+                self.llm,
+            )
+            manual_keys = {_normalize_query(q) for q in manual_queries}
+            auto_generated_queries = [
+                q
+                for q in self.config.queries
+                if _normalize_query(q) not in manual_keys
+            ]
+            console.print(
+                f"[magenta]  🧠 Queries auto-generadas: {len(auto_generated_queries)}"
+            )
 
         for iteration in range(1, max_iters + 1):
             iterations = iteration
@@ -99,6 +125,13 @@ class ProspectingCrew:
 
             # ── PASO 4: Enrich + Dedup ─────────────────────────────
             enriched = self._run_enrichment(all_raw)
+
+            # Cap to max_leads before expensive LLM steps
+            if len(enriched) > max_leads:
+                enriched = enriched[:max_leads]
+                console.print(
+                    f"[dim]  ✂ Leads recortados a {max_leads} antes de profiling"
+                )
 
             # ── PASO 5+6: Timing + Profiler (parallel) ─────────────
             timing_map, profiled = self._run_timing_and_profiling(enriched)
@@ -151,7 +184,14 @@ class ProspectingCrew:
             error_log=error_log,
         )
 
-        OutputAgent.process(qualified, report, self.config, self.settings)
+        OutputAgent.process(
+            qualified,
+            report,
+            self.config,
+            self.settings,
+            business_summary=business_summary,
+            auto_generated_queries=auto_generated_queries,
+        )
         return qualified, report
 
     # ──────────────────────────────────────────────────────────────
@@ -185,7 +225,12 @@ class ProspectingCrew:
             timing_f = executor.submit(
                 VisitTimingAgent.process, enriched, self.llm, self.settings
             )
-            profiler_f = executor.submit(ProfilerAgent.process, enriched, self.llm)
+            profiler_f = executor.submit(
+                ProfilerAgent.process,
+                enriched,
+                self.llm,
+                self.config.business_context,
+            )
             return timing_f.result(), profiler_f.result()
 
     def _run_qualifier(self, profiled: list[ProfiledLead]) -> list[QualifiedLead]:
@@ -236,3 +281,7 @@ def _count_sources(leads: Sequence[RawLead]) -> dict[str, int]:
     for lead in leads:
         counts[lead.source] = counts.get(lead.source, 0) + 1
     return counts
+
+
+def _normalize_query(text: str) -> str:
+    return " ".join(unidecode(text).lower().split())

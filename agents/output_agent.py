@@ -20,7 +20,7 @@ from rich.console import Console
 from rich.table import Table
 
 from config import AppSettings
-from models import QualifiedLead, RunReport, SearchConfig
+from models import BusinessSummary, QualifiedLead, RunReport, SearchConfig
 
 console = Console()
 
@@ -35,16 +35,29 @@ class OutputAgent:
         report: RunReport,
         config: SearchConfig,
         settings: AppSettings,  # noqa: ARG003 — reserved for future cloud upload
+        business_summary: BusinessSummary | None = None,
+        auto_generated_queries: Sequence[str] | None = None,
     ) -> str:
         agent = cls(config)
-        return agent.run(list(leads), report)
+        return agent.run(
+            list(leads),
+            report,
+            business_summary=business_summary,
+            auto_generated_queries=list(auto_generated_queries or []),
+        )
 
     def __init__(self, config: SearchConfig) -> None:
         self.config = config
 
     # ──────────────────────────────────────────────────────────────
 
-    def run(self, leads: list[QualifiedLead], report: RunReport) -> str:
+    def run(
+        self,
+        leads: list[QualifiedLead],
+        report: RunReport,
+        business_summary: BusinessSummary | None = None,
+        auto_generated_queries: list[str] | None = None,
+    ) -> str:
         from tools.excel_tool import export_to_excel
 
         out_path = export_to_excel(
@@ -54,7 +67,13 @@ class OutputAgent:
             filename_prefix=self.config.output_filename,
         )
 
-        log_path = self._write_run_log(leads, report, out_path)
+        log_path = self._write_run_log(
+            leads,
+            report,
+            out_path,
+            business_summary=business_summary,
+            auto_generated_queries=auto_generated_queries or [],
+        )
         self._print_summary(leads, report, out_path, log_path)
         return out_path
 
@@ -65,6 +84,8 @@ class OutputAgent:
         leads: list[QualifiedLead],
         report: RunReport,
         excel_path: str,
+        business_summary: BusinessSummary | None = None,
+        auto_generated_queries: list[str] | None = None,
     ) -> str:
         """Write run_log_{timestamp}.json for audit and reproducibility."""
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -90,6 +111,10 @@ class OutputAgent:
             "leads_per_iteration": report.leads_per_iteration,
             "error_log": report.error_log,
             "excel_output": excel_path,
+            "auto_generated_queries": list(auto_generated_queries or []),
+            "business_summary": (
+                business_summary.model_dump() if business_summary else None
+            ),
             "leads_summary": [
                 {
                     "name": l.name,

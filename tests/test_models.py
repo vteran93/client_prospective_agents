@@ -14,9 +14,12 @@ from __future__ import annotations
 import pytest
 
 from models import (
+    BusinessContext,
+    BusinessSummary,
     CommercialProfile,
     EnrichedLead,
     ProfiledLead,
+    QueryList,
     QualificationConfig,
     QualifiedLead,
     RawLead,
@@ -197,8 +200,69 @@ class TestQualifiedLead:
 
 
 # ──────────────────────────────────────────────────────────────────
-# SearchConfig + QualificationConfig
+# SearchConfig + QualificationConfig + BusinessContext
 # ──────────────────────────────────────────────────────────────────
+
+
+class TestBusinessContext:
+    def test_minimal(self):
+        bc = BusinessContext(description="Consultoría de ventas")
+        assert bc.description == "Consultoría de ventas"
+        assert bc.reference_urls == []
+        assert bc.target_audience == ""
+        assert bc.ideal_customers == []
+
+    def test_full_context(self):
+        bc = BusinessContext(
+            description="Empresa de consultoría",
+            reference_urls=["https://example.com"],
+            target_audience="PYMEs en Bogotá",
+            ideal_customers=["Talleres mecánicos", "Clínicas veterinarias"],
+        )
+        assert len(bc.reference_urls) == 1
+        assert len(bc.ideal_customers) == 2
+        assert bc.target_audience == "PYMEs en Bogotá"
+
+    def test_description_required(self):
+        with pytest.raises(Exception):
+            BusinessContext()
+
+
+class TestBusinessSummary:
+    def test_defaults(self):
+        bs = BusinessSummary()
+        assert bs.core_offering == ""
+        assert bs.target_sectors == []
+        assert bs.key_pain_points == []
+        assert bs.differentiators == []
+        assert bs.geographic_focus == ""
+        assert bs.ideal_customers == []
+        assert bs.raw_context == ""
+
+    def test_full_summary(self):
+        bs = BusinessSummary(
+            core_offering="Software de nómina",
+            target_sectors=["Construcción", "Distribución"],
+            key_pain_points=["Gestión manual de nómina"],
+            differentiators=["Integración ERP"],
+            geographic_focus="Bogotá, Colombia",
+            ideal_customers=["PYMEs", "Constructoras"],
+            raw_context="Contexto completo aquí",
+        )
+        assert bs.core_offering == "Software de nómina"
+        assert len(bs.target_sectors) == 2
+        assert len(bs.ideal_customers) == 2
+        assert "Contexto" in bs.raw_context
+
+
+class TestQueryList:
+    def test_defaults(self):
+        ql = QueryList()
+        assert ql.queries == []
+
+    def test_accepts_queries(self):
+        ql = QueryList(queries=["query 1", "query 2"])
+        assert ql.queries == ["query 1", "query 2"]
 
 
 class TestSearchConfig:
@@ -223,6 +287,35 @@ class TestSearchConfig:
         )
         assert cfg.qualification.min_score_hot == 7.5
         assert cfg.qualification.target_hot_warm == 50
+
+    def test_business_context_only(self):
+        """Queries vacías + business_context presente → válido."""
+        bc = BusinessContext(description="Consultoría de ventas")
+        cfg = SearchConfig(
+            campaign_name="BC Only",
+            city="Bogotá",
+            business_context=bc,
+        )
+        assert cfg.queries == []
+        assert cfg.business_context is not None
+        assert cfg.business_context.description == "Consultoría de ventas"
+
+    def test_queries_and_business_context(self):
+        """Ambos presentes → válido."""
+        bc = BusinessContext(description="Empresa de ventas")
+        cfg = SearchConfig(
+            campaign_name="Both",
+            queries=["talleres bogotá"],
+            city="Bogotá",
+            business_context=bc,
+        )
+        assert len(cfg.queries) == 1
+        assert cfg.business_context is not None
+
+    def test_no_queries_no_context_raises(self):
+        """Sin queries ni business_context → ValidationError."""
+        with pytest.raises(Exception, match="queries.*business_context"):
+            SearchConfig(campaign_name="Empty", city="Bogotá")
 
 
 # ──────────────────────────────────────────────────────────────────

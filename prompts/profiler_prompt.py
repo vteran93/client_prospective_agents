@@ -33,10 +33,14 @@ Reglas:
 - Responde ÚNICAMENTE con JSON válido. Sin markdown, sin texto extra.
 - Basa tu análisis en los datos provistos. No asumas más de lo que los datos sugieren.
 - Scores Hormozi: 0 = ausente/malo, 1 = bajo, 2 = medio, 3 = alto.
+- El pitch_hook y cardone_action_line deben vender ESPECÍFICAMENTE el servicio/producto descrito en el contexto del vendedor.
 """
 
 PROFILER_HUMAN = """\
 Genera el perfil comercial completo para el siguiente prospecto.
+
+=== CONTEXTO DEL VENDEDOR (lo que estamos vendiendo) ===
+{seller_context}
 
 === DATOS DEL PROSPECTO ===
 {lead_json}
@@ -56,14 +60,23 @@ Genera el perfil comercial completo para el siguiente prospecto.
   "cardone_followup_est": "<1-2|3-5|5+>",
   "cardone_entry_channel": "<whatsapp|llamada|email|visita>",
   "cardone_action_line": "<frase de apertura de contacto personalizada, máximo 1 oración>",
-  "pitch_hook": "<gancho de ventas irresistible específico para este prospecto, máximo 2 oraciones>"
+  "pitch_hook": "<gancho de ventas irresistible que conecte la necesidad del prospecto con el servicio del vendedor, máximo 2 oraciones>"
 }}
 """
 
 
-def build_profiler_messages(lead_json: str) -> list[dict]:
+def build_profiler_messages(
+    lead_json: str,
+    seller_context: str = "",
+) -> list[dict]:
     """Return list of messages ready for ChatModel.invoke()."""
     return [
         {"role": "system", "content": PROFILER_SYSTEM},
-        {"role": "user", "content": PROFILER_HUMAN.format(lead_json=lead_json)},
+        {
+            "role": "user",
+            "content": PROFILER_HUMAN.format(
+                lead_json=lead_json,
+                seller_context=seller_context or "(No disponible)",
+            ),
+        },
     ]

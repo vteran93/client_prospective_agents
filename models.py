@@ -24,9 +24,36 @@ class QualificationConfig(BaseModel):
     target_hot_warm: int = 80
 
 
+class BusinessContext(BaseModel):
+    """Contexto del negocio del usuario para auto-generación de queries (EP-7)."""
+
+    description: str
+    reference_urls: List[str] = Field(default_factory=list)
+    target_audience: str = ""
+    ideal_customers: List[str] = Field(default_factory=list)
+
+
+class BusinessSummary(BaseModel):
+    """Resumen estructurado generado por ContextAgent (T034)."""
+
+    core_offering: str = ""
+    target_sectors: List[str] = Field(default_factory=list)
+    key_pain_points: List[str] = Field(default_factory=list)
+    differentiators: List[str] = Field(default_factory=list)
+    geographic_focus: str = ""
+    ideal_customers: List[str] = Field(default_factory=list)
+    raw_context: str = Field(default="", max_length=3000)
+
+
+class QueryList(BaseModel):
+    """Lista estructurada de queries generadas por QueryGeneratorAgent (T035)."""
+
+    queries: List[str] = Field(default_factory=list)
+
+
 class SearchConfig(BaseModel):
     campaign_name: str
-    queries: List[str] = Field(min_length=1)
+    queries: List[str] = Field(default_factory=list)
     city: str
     country: str = "Colombia"
     language: str = "es"
@@ -38,11 +65,14 @@ class SearchConfig(BaseModel):
     output_filename: str = "prospectos"
     llm_provider: str = "bedrock"
     qualification: QualificationConfig = Field(default_factory=QualificationConfig)
+    business_context: Optional[BusinessContext] = None
 
     @model_validator(mode="after")
-    def validate_queries_not_empty(self) -> "SearchConfig":
-        if not self.queries:
-            raise ValueError("queries no puede estar vacío")
+    def validate_queries_or_business_context(self) -> "SearchConfig":
+        if not self.queries and not self.business_context:
+            raise ValueError(
+                "Se requiere 'queries' o 'business_context' (al menos uno)"
+            )
         return self
 
 

@@ -1,0 +1,42 @@
+campaign:
+  name: "Leads Growth Guard Prospectiva Fintech Q1-2026"
+  city: "Bogotá"
+  country: "Colombia"
+  language: "es"
+  max_leads: 20
+  max_iterations: 2
+  sources:
+    - duckduckgo
+  scrape_websites: true
+  scraper_concurrency: 5
+  output_filename: "prospectos_growth_guard_prospectiva_fintech"
+  business_context:
+    description: >
+      Growth Guard Prospectiva ayuda a fintech y empresas reguladas a anticipar riesgos,
+      cambios del entorno y señales competitivas mediante inteligencia estratégica asistida
+      por IA. El servicio convierte noticias, movimientos del mercado, señales regulatorias
+      y cambios sectoriales en informes ejecutivos accionables para dirección, estrategia,
+      riesgo e innovación. La propuesta incluye monitoreo OSINT, detección de señales,
+      priorización de riesgos y oportunidades, y reportes claros para apoyar decisiones
+      comerciales y estratégicas. El objetivo es reducir sorpresa estratégica y mejorar
+      la velocidad de reacción del negocio. Precios estimados desde $3,000 hasta $12,000
+      USD mensuales según cobertura y frecuencia.
+    reference_urls:
+      - "https://growthguard.io"
+      - "https://www.linkedin.com/in/victor-ter%C3%A1n/"
+    target_audience: "CEOs, COO, CRO, directores de estrategia, riesgo, innovación y desarrollo de negocio en fintech, insurtech, neobancos, pagos, crédito digital y empresas reguladas en Colombia y LatAm"
+    ideal_customers:
+      - "Fintech en expansión regional que deba monitorear regulación y competencia"
+      - "Empresa de pagos con necesidad de alertas estratégicas sobre mercado y entorno"
+      - "Insurtech que requiera vigilancia competitiva y detección de oportunidades"
+      - "Compañía con comité de riesgo o estrategia que necesite informes periódicos"
+      - "Empresa regulada con presión de adaptación tecnológica y de mercado"
+
+llm:
+  provider: "bedrock"
+  temperature: 0.2
+
+qualification:
+  min_score_hot: 7.5
+  min_score_warm: 5.0
+  target_hot_warm: 12
