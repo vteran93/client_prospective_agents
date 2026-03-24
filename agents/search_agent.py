@@ -104,6 +104,11 @@ class SearchAgent:
         city = self.config.city
         base = self.config.queries
 
+        if self.config.business_context:
+            ready_queries = list(dict.fromkeys(base))
+            console.print(f"[dim]  🧠 Queries pre-generadas: {len(ready_queries)}")
+            return ready_queries
+
         prompt = (
             f"Genera 3 variaciones de búsqueda para cada una de las siguientes consultas "
             f"orientadas a encontrar empresas en {city}, Colombia. "

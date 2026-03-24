@@ -10,13 +10,11 @@ Responsibilities (T035):
 
 from __future__ import annotations
 
-import json
-import re
-
 from langchain_core.language_models import BaseChatModel
 from rich.console import Console
+from unidecode import unidecode
 
-from models import BusinessSummary, SearchConfig
+from models import BusinessSummary, QueryList, SearchConfig
 from prompts.query_generator_prompt import (
     QUERY_GENERATOR_HUMAN,
     QUERY_GENERATOR_SYSTEM,
@@ -57,20 +55,21 @@ class QueryGeneratorAgent:
                     city=config.city,
                     country=config.country,
                     language=config.language,
+                    target_audience=(
+                        config.business_context.target_audience
+                        if config.business_context
+                        and config.business_context.target_audience
+                        else "(No disponible)"
+                    ),
                 ),
             },
         ]
 
         generated: list[str] = []
         try:
-            response = llm.invoke(messages)
-            content = (
-                response.content if hasattr(response, "content") else str(response)
-            )
-            # Extract JSON array from response
-            match = re.search(r"\[.*\]", content, re.DOTALL)
-            if match:
-                generated = json.loads(match.group())
+            structured_llm = llm.with_structured_output(QueryList)
+            response: QueryList = structured_llm.invoke(messages)
+            generated = list(response.queries)
         except Exception as exc:
             console.print(f"[yellow]  ⚠ QueryGeneratorAgent LLM fallback: {exc}")
 
@@ -96,12 +95,18 @@ class QueryGeneratorAgent:
 
 
 def _deduplicate(queries: list[str]) -> list[str]:
-    """Case-insensitive deduplication preserving order."""
+    """Normalized, case-insensitive deduplication preserving order."""
     seen: set[str] = set()
     result: list[str] = []
     for q in queries:
-        key = q.strip().lower()
+        clean = q.strip()
+        key = _normalize_query(clean)
         if key and key not in seen:
             seen.add(key)
-            result.append(q.strip())
+            result.append(clean)
     return result
+
+
+def _normalize_query(text: str) -> str:
+    """Normalize whitespace, casing and accents for stable query dedup."""
+    return " ".join(unidecode(text).lower().split())

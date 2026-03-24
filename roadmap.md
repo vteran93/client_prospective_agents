@@ -980,7 +980,7 @@ campaign:
 
 ---
 
-### TICKET-033.1 Pruebas end2end con los siguientes archivos
+### TICKET-033.1 Pruebas end2end con los siguientes archivos  DONE
 
 
 # Saireh.com Recursos humanos 
@@ -1049,18 +1049,16 @@ campaign:
       - "Empresa mediana con equipo de ingeniería sin liderazgo técnico senior"
 ```
 
-
-
 ---
 
-### TICKET-034 · ContextAgent: scrape URLs de referencia + resumen del negocio 🔶 PENDIENTE
+### TICKET-034 · ContextAgent: scrape URLs de referencia + resumen del negocio DONE
 
 ```
 Tipo:       feature
 Prioridad:  P1
 Est.:       3 h
 Deps.:      TICKET-033, TICKET-011 (Scraper Tool)
-Estado:     PENDIENTE
+Estado:     COMPLETADO
 ```
 
 **Descripción**  
@@ -1069,27 +1067,27 @@ Nuevo agente que toma el `BusinessContext` del config, scrapea las `reference_ur
 **Archivo:** `agents/context_agent.py`
 
 **Criterios de aceptación**
-- [ ] `ContextAgent.process(config, settings, llm) -> BusinessSummary`
-- [ ] Scrapea cada URL en `reference_urls` concurrentemente (reutiliza `WebScraperTool`)
-- [ ] Combina `description` + contenido scrapeado en un prompt al LLM
-- [ ] Modelo `BusinessSummary` (Pydantic): `core_offering` (str), `target_sectors` (List[str]), `key_pain_points` (List[str]), `differentiators` (List[str]), `geographic_focus` (str), `ideal_customers` (List[str]), `raw_context` (str, el texto combinado, max 3000 chars)
-- [ ] **Si `business_context.ideal_customers` está vacío**: el LLM los genera como parte del `BusinessSummary`. El prompt pide al LLM que infiera 5-10 perfiles de cliente ideal basándose en `description`, `target_audience`, y contenido scrapeado
-- [ ] **Si `business_context.ideal_customers` tiene valores**: se copian directamente al `BusinessSummary.ideal_customers` sin gastar tokens de LLM en inferirlos
-- [ ] Usa `with_structured_output(BusinessSummary)` para parseo seguro
-- [ ] Si no hay `reference_urls` o el scrape falla, genera el resumen solo con la `description`
-- [ ] Timeout de 10s por URL scrapeada
-- [ ] Log Rich: si ideal_customers fue generado por LLM, mostrar `"🧠 Clientes ideales inferidos por LLM: N perfiles"`
+- [x] `ContextAgent.process(config, settings, llm) -> BusinessSummary`
+- [x] Scrapea cada URL en `reference_urls` concurrentemente (reutiliza `WebScraperTool`)
+- [x] Combina `description` + contenido scrapeado en un prompt al LLM
+- [x] Modelo `BusinessSummary` (Pydantic): `core_offering` (str), `target_sectors` (List[str]), `key_pain_points` (List[str]), `differentiators` (List[str]), `geographic_focus` (str), `ideal_customers` (List[str]), `raw_context` (str, el texto combinado, max 3000 chars)
+- [x] **Si `business_context.ideal_customers` está vacío**: el LLM los genera como parte del `BusinessSummary`. El prompt pide al LLM que infiera 5-10 perfiles de cliente ideal basándose en `description`, `target_audience`, y contenido scrapeado
+- [x] **Si `business_context.ideal_customers` tiene valores**: se copian directamente al `BusinessSummary.ideal_customers` sin gastar tokens de LLM en inferirlos
+- [x] Usa `with_structured_output(BusinessSummary)` para parseo seguro
+- [x] Si no hay `reference_urls` o el scrape falla, genera el resumen solo con la `description`
+- [x] Timeout de 10s por URL scrapeada
+- [x] Log Rich: si ideal_customers fue generado por LLM, mostrar `"🧠 Clientes ideales inferidos por LLM: N perfiles"`
 
 ---
 
-### TICKET-035 · QueryGeneratorAgent: LLM genera queries automáticamente 🔶 PENDIENTE
+### TICKET-035 · QueryGeneratorAgent: LLM genera queries automáticamente DONE
 
 ```
 Tipo:       feature
 Prioridad:  P1
 Est.:       2 h
 Deps.:      TICKET-034 (ContextAgent)
-Estado:     PENDIENTE
+Estado:     COMPLETADO
 ```
 
 **Descripción**  
@@ -1099,24 +1097,24 @@ Nuevo agente que toma el `BusinessSummary` y genera una lista de queries de bús
 **Prompt:** `prompts/query_generator_prompt.py`
 
 **Criterios de aceptación**
-- [ ] `QueryGeneratorAgent.process(summary, config, llm) -> List[str]`
-- [ ] El prompt incluye: resumen del negocio, ciudad, país, idioma, target_audience, ideal_customers (lista completa del BusinessSummary)
-- [ ] Genera 10-20 queries diversas: variaciones geográficas, sinónimos del sector, búsquedas por dolor/necesidad, búsquedas por tipo de negocio
-- [ ] Si `config.queries` ya tiene valores, los combina (queries manuales primero + generadas)
-- [ ] Usa `with_structured_output` con un modelo `QueryList` (List[str])
-- [ ] Deduplica queries (case-insensitive, normalizado)
-- [ ] Reemplaza la expansion de queries existente en `SearchAgent._expand_queries()`: si hay `business_context`, usa las queries generadas; si no, mantiene el flujo actual
+- [x] `QueryGeneratorAgent.process(summary, config, llm) -> List[str]`
+- [x] El prompt incluye: resumen del negocio, ciudad, país, idioma, target_audience, ideal_customers (lista completa del BusinessSummary)
+- [x] Genera 10-20 queries diversas: variaciones geográficas, sinónimos del sector, búsquedas por dolor/necesidad, búsquedas por tipo de negocio
+- [x] Si `config.queries` ya tiene valores, los combina (queries manuales primero + generadas)
+- [x] Usa `with_structured_output` con un modelo `QueryList` (List[str])
+- [x] Deduplica queries (case-insensitive, normalizado)
+- [x] Reemplaza la expansion de queries existente en `SearchAgent._expand_queries()`: si hay `business_context`, usa las queries generadas; si no, mantiene el flujo actual
 
 ---
 
-### TICKET-036 · Integrar EP-7 en crew.py (paso 0 del pipeline) 🔶 PENDIENTE
+### TICKET-036 · Integrar EP-7 en crew.py (paso 0 del pipeline) DONE
 
 ```
 Tipo:       feature
 Prioridad:  P1
 Est.:       1 h
 Deps.:      TICKET-034, TICKET-035
-Estado:     PENDIENTE
+Estado:     COMPLETADO
 ```
 
 **Descripción**  
@@ -1132,12 +1130,12 @@ PASO 1+2: Search + Maps (igual que antes, pero con queries enriquecidas)
 ```
 
 **Criterios de aceptación**
-- [ ] `crew.py`: si `config.business_context` existe, ejecutar paso 0 antes del loop
-- [ ] Las queries generadas se loguean en consola (Rich): `"🧠 Queries auto-generadas: N"`
-- [ ] Si `business_context` no existe, el pipeline funciona exactamente igual que hoy
-- [ ] Las queries generadas se incluyen en el `run_log_*.json` bajo `auto_generated_queries`
-- [ ] Retrocompatibilidad total: configs sin `business_context` funcionan sin cambios
-- [ ] El `BusinessSummary` se incluye en el `run_log` para auditoría
+- [x] `crew.py`: si `config.business_context` existe, ejecutar paso 0 antes del loop
+- [x] Las queries generadas se loguean en consola (Rich): `"🧠 Queries auto-generadas: N"`
+- [x] Si `business_context` no existe, el pipeline funciona exactamente igual que hoy
+- [x] Las queries generadas se incluyen en el `run_log_*.json` bajo `auto_generated_queries`
+- [x] Retrocompatibilidad total: configs sin `business_context` funcionan sin cambios
+- [x] El `BusinessSummary` se incluye en el `run_log` para auditoría
 
 ---
 
@@ -2260,13 +2258,16 @@ SEMANA 1                          SEMANA 2               SEMANA 3
 
 ---
 
-## 🚀 Próximos pasos (actualizado 2026-03-21)
+## 🚀 Próximos pasos (actualizado 2026-03-23)
 
 ### Completados ✅
 
 | Ticket | Tarea |
 |--------|-------|
 | T027 | `output_agent.py` — `run_log_{timestamp}.json` generado |
+| T034 | ContextAgent: scrape URLs + resumen del negocio |
+| T035 | QueryGeneratorAgent: LLM genera queries automáticamente |
+| T036 | Integrar EP-7 en crew.py (paso 0 del pipeline) |
 | T030 | Smoke test infraestructura lista (venv, Chromium, .env, dry-run OK) |
 
 ### Activos / En progreso
@@ -2283,9 +2284,6 @@ SEMANA 1                          SEMANA 2               SEMANA 3
 | T026 | `test_excel_tool.py` — validación E2E del Excel con 20 leads | P0 |
 | T029 | Tests de integración de agentes (LLM mockeado) | P1 |
 | T033 | Modelo BusinessContext + YAML config (EP-7) | P1 |
-| T034 | ContextAgent: scrape URLs + resumen del negocio | P1 |
-| T035 | QueryGeneratorAgent: LLM genera queries automáticamente | P1 |
-| T036 | Integrar EP-7 en crew.py (paso 0 del pipeline) | P1 |
 | T037 | EmailConfig model + YAML + state models (EP-8) | P1 |
 | T038 | Email prompts: first-touch + classifier + follow-up | P1 |
 | T039 | EmailOutreachAgent: Excel → LLM HTML → SMTP send | P0 |

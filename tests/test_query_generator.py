@@ -13,9 +13,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import pytest
-
-from models import BusinessSummary, SearchConfig
+from models import BusinessSummary, QueryList, SearchConfig
 
 
 # ── Helpers ───────────────────────────────────────────────────────
@@ -45,20 +43,20 @@ def _make_config(queries: list[str] | None = None) -> SearchConfig:
     )
 
 
-def _mock_llm_returning_json(queries: list[str]) -> MagicMock:
-    """Create a mock LLM that returns a JSON array of query strings."""
-    import json
-
+def _mock_llm_returning_queries(queries: list[str]) -> MagicMock:
+    """Create a mock LLM that returns QueryList via with_structured_output."""
     mock_llm = MagicMock()
-    response = MagicMock()
-    response.content = json.dumps(queries, ensure_ascii=False)
-    mock_llm.invoke.return_value = response
+    structured = MagicMock()
+    structured.invoke.return_value = QueryList(queries=queries)
+    mock_llm.with_structured_output.return_value = structured
     return mock_llm
 
 
 def _mock_llm_failing() -> MagicMock:
     mock_llm = MagicMock()
-    mock_llm.invoke.side_effect = RuntimeError("LLM error")
+    structured = MagicMock()
+    structured.invoke.side_effect = RuntimeError("LLM error")
+    mock_llm.with_structured_output.return_value = structured
     return mock_llm
 
 
@@ -73,7 +71,7 @@ class TestQueryGeneratorBasic:
             "distribuidora consumo masivo Bogotá",
             "constructora obras civiles Bogotá",
         ]
-        llm = _mock_llm_returning_json(llm_queries)
+        llm = _mock_llm_returning_queries(llm_queries)
         summary = _make_summary()
         config = _make_config()
 
@@ -81,6 +79,29 @@ class TestQueryGeneratorBasic:
         assert len(result) == 2
         assert "distribuidora consumo masivo Bogotá" in result
         assert "constructora obras civiles Bogotá" in result
+
+    def test_uses_structured_output_schema(self):
+        from agents.query_generator_agent import QueryGeneratorAgent
+
+        llm = _mock_llm_returning_queries(["query 1"])
+        summary = _make_summary()
+        config = _make_config()
+
+        QueryGeneratorAgent.process(summary, config, llm)
+        llm.with_structured_output.assert_called_once_with(QueryList)
+
+    def test_prompt_includes_target_audience(self):
+        from agents.query_generator_agent import QueryGeneratorAgent
+
+        llm = _mock_llm_returning_queries(["query 1"])
+        summary = _make_summary()
+        config = _make_config()
+        config.business_context.target_audience = "Gerentes de RRHH"
+
+        QueryGeneratorAgent.process(summary, config, llm)
+
+        messages = llm.with_structured_output.return_value.invoke.call_args.args[0]
+        assert "Gerentes de RRHH" in messages[1]["content"]
 
 
 class TestQueryGeneratorFallback:
@@ -135,7 +156,7 @@ class TestQueryGeneratorManualCombine:
         from agents.query_generator_agent import QueryGeneratorAgent
 
         llm_queries = ["distribuidora Bogotá", "constructora Bogotá"]
-        llm = _mock_llm_returning_json(llm_queries)
+        llm = _mock_llm_returning_queries(llm_queries)
         summary = _make_summary()
         config = _make_config(queries=["mi query manual"])
 
@@ -147,7 +168,7 @@ class TestQueryGeneratorManualCombine:
         from agents.query_generator_agent import QueryGeneratorAgent
 
         llm_queries = ["distribuidora Bogotá", "mi query manual"]
-        llm = _mock_llm_returning_json(llm_queries)
+        llm = _mock_llm_returning_queries(llm_queries)
         summary = _make_summary()
         config = _make_config(queries=["mi query manual"])
 
@@ -163,7 +184,7 @@ class TestQueryGeneratorCap:
 
         # Generate more than MAX_GENERATED (15) queries
         llm_queries = [f"query_{i} Bogotá" for i in range(30)]
-        llm = _mock_llm_returning_json(llm_queries)
+        llm = _mock_llm_returning_queries(llm_queries)
         summary = _make_summary()
         config = _make_config()
 
@@ -171,18 +192,10 @@ class TestQueryGeneratorCap:
         assert len(result) <= 15
 
 
-class TestQueryGeneratorLLMResponseParsing:
-    def test_extracts_json_from_markdown(self):
-        from agents.query_generator_agent import QueryGeneratorAgent
+class TestQueryGeneratorNormalization:
+    def test_dedup_normalizes_accents(self):
+        from agents.query_generator_agent import _deduplicate
 
-        mock_llm = MagicMock()
-        response = MagicMock()
-        response.content = 'Aquí van las queries:\n```json\n["query1", "query2"]\n```'
-        mock_llm.invoke.return_value = response
-
-        summary = _make_summary()
-        config = _make_config()
-
-        result = QueryGeneratorAgent.process(summary, config, mock_llm)
-        assert "query1" in result
-        assert "query2" in result
+        queries = ["clinicas Bogota", "Clínicas Bogotá", "clínicas bogotá"]
+        result = _deduplicate(queries)
+        assert result == ["clinicas Bogota"]

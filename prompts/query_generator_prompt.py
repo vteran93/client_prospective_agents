@@ -38,15 +38,17 @@ Diferenciadores: {differentiators}
 Ciudad: {city}
 País: {country}
 Idioma: {language}
+Audiencia objetivo: {target_audience}
 
 === INSTRUCCIONES ===
-Genera un arreglo JSON de 10-20 queries de búsqueda optimizadas para encontrar \
-estos tipos de clientes en {city}. Las queries deben:
+Genera un objeto JSON con la forma {{"queries": [...]}} que contenga de 10 a 20 \
+queries de búsqueda optimizadas para encontrar estos tipos de clientes en {city}. \
+Las queries deben:
 1. Buscar por tipo de empresa/sector + ciudad (ej: "distribuidora Bogotá")
 2. Buscar por necesidad/dolor (ej: "empresas gestión nómina Bogotá")
 3. Buscar por tamaño (ej: "pymes servicios Bogotá")
 4. Incluir sinónimos y variaciones regionales colombianas
 
-Responde SOLO con un arreglo JSON de strings, sin texto extra. Ejemplo:
-["query 1", "query 2", "query 3"]
+Responde SOLO con el objeto JSON, sin texto extra. Ejemplo:
+{{"queries": ["query 1", "query 2", "query 3"]}}
 """

@@ -19,6 +19,7 @@ from models import (
     CommercialProfile,
     EnrichedLead,
     ProfiledLead,
+    QueryList,
     QualificationConfig,
     QualifiedLead,
     RawLead,
@@ -252,6 +253,16 @@ class TestBusinessSummary:
         assert len(bs.target_sectors) == 2
         assert len(bs.ideal_customers) == 2
         assert "Contexto" in bs.raw_context
+
+
+class TestQueryList:
+    def test_defaults(self):
+        ql = QueryList()
+        assert ql.queries == []
+
+    def test_accepts_queries(self):
+        ql = QueryList(queries=["query 1", "query 2"])
+        assert ql.queries == ["query 1", "query 2"]
 
 
 class TestSearchConfig:

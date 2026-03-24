@@ -42,7 +42,13 @@ class BusinessSummary(BaseModel):
     differentiators: List[str] = Field(default_factory=list)
     geographic_focus: str = ""
     ideal_customers: List[str] = Field(default_factory=list)
-    raw_context: str = ""
+    raw_context: str = Field(default="", max_length=3000)
+
+
+class QueryList(BaseModel):
+    """Lista estructurada de queries generadas por QueryGeneratorAgent (T035)."""
+
+    queries: List[str] = Field(default_factory=list)
 
 
 class SearchConfig(BaseModel):
