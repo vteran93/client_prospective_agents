@@ -1,0 +1,32 @@
+campaign:
+  name: "Leads Growth Guard Prospectiva Fintech Q1-2026"
+  city: "Bogotá, Medellin, Cali, Santa Marta, Cartagena"
+  country: "Colombia"
+  language: "es"
+  max_leads: 20
+  max_iterations: 2
+  sources:
+    - duckduckgo
+    - google_maps
+    - tavily
+    - brave
+  scrape_websites: true
+  scraper_concurrency: 5
+  output_filename: "prospectos_soluciones_odontologicas"
+  business_context:
+    description: >
+      Dental Soluciones ODONTOLOGICAS ME SAS, es una empresa colombiana que provee dispositivos médicos
+      odontologicos a consultorios odontologicos, clinicas dentales, y esteticas dentales, ofrecen linea 
+      de credito a sus clientes. 
+    reference_urls:
+      - "https://empresite.eleconomistaamerica.co/DENTAL-SOLUCIONES-ODONTOLOGICAS-ME-SAS.html"
+    target_audience: "Consulturios odontologicos, clinicas dentales, esteticas dentales"
+
+llm:
+  provider: "bedrock"
+  temperature: 0.2
+
+qualification:
+  min_score_hot: 7.5
+  min_score_warm: 5.0
+  target_hot_warm: 12
