@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -51,6 +51,57 @@ class QueryList(BaseModel):
     queries: List[str] = Field(default_factory=list)
 
 
+class RouteConfig(BaseModel):
+    enabled: bool = False
+    origin_address: str = ""
+    origin_lat: float = 0.0
+    origin_lng: float = 0.0
+    travel_mode: Literal["DRIVE", "TWO_WHEELER", "WALK"] = "DRIVE"
+    departure_time: Optional[str] = None
+    max_waypoints_per_route: int = Field(default=25, ge=1, le=25)
+    tiers_to_visit: List[str] = Field(default_factory=lambda: ["HOT", "WARM"])
+
+    @field_validator("tiers_to_visit")
+    @classmethod
+    def normalize_tiers(cls, value: List[str]) -> List[str]:
+        allowed = {"HOT", "WARM", "COLD"}
+        result: List[str] = []
+        seen: set[str] = set()
+        for tier in value or ["HOT", "WARM"]:
+            normalized = str(tier).strip().upper()
+            if normalized in allowed and normalized not in seen:
+                seen.add(normalized)
+                result.append(normalized)
+        return result or ["HOT", "WARM"]
+
+
+class RouteWaypoint(BaseModel):
+    lead_name: str
+    address: str
+    lat: float
+    lng: float
+    place_id: str = ""
+    tier: str
+    contact_priority: int
+    final_score: float
+    phone: str = ""
+    visit_order: int = 0
+    estimated_arrival_minutes: float = 0.0
+    distance_to_next_km: float = 0.0
+    duration_to_next_minutes: float = 0.0
+    google_maps_url: str = ""
+
+
+class RoutePlan(BaseModel):
+    origin: str
+    waypoints: List[RouteWaypoint] = Field(default_factory=list)
+    total_distance_km: float = 0.0
+    total_duration_minutes: float = 0.0
+    google_maps_urls: List[str] = Field(default_factory=list)
+    route_groups: int = 1
+    generated_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+
+
 class SearchConfig(BaseModel):
     campaign_name: str
     queries: List[str] = Field(default_factory=list)
@@ -66,6 +117,7 @@ class SearchConfig(BaseModel):
     llm_provider: str = "bedrock"
     qualification: QualificationConfig = Field(default_factory=QualificationConfig)
     business_context: Optional[BusinessContext] = None
+    route_planning: Optional[RouteConfig] = None
 
     @model_validator(mode="after")
     def validate_queries_or_business_context(self) -> "SearchConfig":

@@ -24,7 +24,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Sequence
 
-from models import QualifiedLead, RunReport
+from models import QualifiedLead, RoutePlan, RunReport
 
 # Conditional import — openpyxl must be installed
 try:
@@ -52,12 +52,19 @@ _HEADER_FILL = {
     "COLD": PatternFill("solid", fgColor="1F4E79") if _OPENPYXL_OK else None,
     "TODOS": PatternFill("solid", fgColor="2E4057") if _OPENPYXL_OK else None,
     "RESUMEN": PatternFill("solid", fgColor="375623") if _OPENPYXL_OK else None,
+    "RUTA": PatternFill("solid", fgColor="BDD7EE") if _OPENPYXL_OK else None,
 }
 _HEADER_FONT = Font(bold=True, color="FFFFFF", size=10) if _OPENPYXL_OK else None
+_ROUTE_HEADER_FONT = Font(bold=True, color="000000", size=10) if _OPENPYXL_OK else None
 _THIN = Side(style="thin") if _OPENPYXL_OK else None
 _BORDER = (
     Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN) if _OPENPYXL_OK else None
 )
+_ROUTE_TIER_FILL = {
+    "HOT": PatternFill("solid", fgColor="C6EFCE") if _OPENPYXL_OK else None,
+    "WARM": PatternFill("solid", fgColor="FFEB9C") if _OPENPYXL_OK else None,
+    "COLD": PatternFill("solid", fgColor="D9D9D9") if _OPENPYXL_OK else None,
+}
 
 # ──────────────────────────────────────────────────────────────────
 # Column definitions  (header, field_extractor)
@@ -76,45 +83,55 @@ def _get(lead: QualifiedLead, *attrs):
 _COLUMNS = [
     # fmt: off
     # Contact
-    ("Nombre",           lambda l: l.name),
-    ("Teléfono",         lambda l: l.phone),
-    ("WhatsApp",         lambda l: l.whatsapp_number or ("Sí" if l.has_whatsapp else "")),
-    ("Emails",           lambda l: "; ".join(l.emails_scraped or ([l.email] if l.email else []))),
-    ("Sitio Web",        lambda l: l.website),
+    ("Nombre", lambda l: l.name),
+    ("Teléfono", lambda l: l.phone),
+    ("WhatsApp", lambda l: l.whatsapp_number or ("Sí" if l.has_whatsapp else "")),
+    ("Emails", lambda l: "; ".join(l.emails_scraped or ([l.email] if l.email else []))),
+    ("Sitio Web", lambda l: l.website),
     # Location
-    ("Dirección",        lambda l: l.address),
-    ("Ciudad",           lambda l: ""),           # filled from config at runtime
+    ("Dirección", lambda l: l.address),
+    ("Ciudad", None),
     # Ratings
-    ("Rating Google",    lambda l: l.rating),
-    ("Reseñas",          lambda l: l.reviews_count),
+    ("Rating Google", lambda l: l.rating),
+    ("Reseñas", lambda l: l.reviews_count),
     # Digital
-    ("Madurez Digital",  lambda l: _get(l, "digital_maturity")),
-    ("Stack Tech",       lambda l: "; ".join(l.technology_stack or [])),
-    ("Redes Sociales",   lambda l: "; ".join(f"{k}: {v}" for k, v in (l.social_links or {}).items())),
+    ("Madurez Digital", lambda l: _get(l, "digital_maturity")),
+    ("Stack Tech", lambda l: "; ".join(l.technology_stack or [])),
+    (
+        "Redes Sociales",
+        lambda l: "; ".join(f"{k}: {v}" for k, v in (l.social_links or {}).items()),
+    ),
     # Profile
-    ("Tamaño Est.",      lambda l: _get(l, "estimated_size")),
-    ("Sector",           lambda l: _get(l, "main_sector")),
-    ("Tipo Comprador",   lambda l: _get(l, "profile", "challenger_buyer_type")),
-    ("Score Hormozi",    lambda l: _get(l, "profile", "hormozi_score")),
-    ("Label Hormozi",    lambda l: _get(l, "profile", "hormozi_label")),
-    ("Compromiso",       lambda l: _get(l, "profile", "cardone_commitment")),
-    ("Canal Entrada",    lambda l: _get(l, "profile", "cardone_entry_channel")),
-    ("Objeción Princ.",  lambda l: _get(l, "profile", "cardone_objection")),
-    ("Pitch Hook",       lambda l: _get(l, "profile", "pitch_hook")),
+    ("Tamaño Est.", lambda l: _get(l, "estimated_size")),
+    ("Sector", lambda l: _get(l, "main_sector")),
+    ("Tipo Comprador", lambda l: _get(l, "profile", "challenger_buyer_type")),
+    ("Score Hormozi", lambda l: _get(l, "profile", "hormozi_score")),
+    ("Label Hormozi", lambda l: _get(l, "profile", "hormozi_label")),
+    ("Compromiso", lambda l: _get(l, "profile", "cardone_commitment")),
+    ("Canal Entrada", lambda l: _get(l, "profile", "cardone_entry_channel")),
+    ("Objeción Princ.", lambda l: _get(l, "profile", "cardone_objection")),
+    ("Pitch Hook", lambda l: _get(l, "profile", "pitch_hook")),
     ("Acción Propuesta", lambda l: _get(l, "profile", "cardone_action_line")),
     # Timing
-    ("Mejor Horario",    lambda l: _get(l, "visit_timing", "timing_summary")),
-    ("Conf. Horario",    lambda l: _get(l, "visit_timing", "timing_confidence")),
+    ("Mejor Horario", lambda l: _get(l, "visit_timing", "timing_summary")),
+    ("Conf. Horario", lambda l: _get(l, "visit_timing", "timing_confidence")),
     # Score + Tier
-    ("Score Final",      lambda l: round(l.final_score, 2) if l.final_score else ""),
-    ("Tier",             lambda l: l.tier),
-    ("Prioridad",        lambda l: l.contact_priority),
-    ("Razón Descarte",   lambda l: l.discard_reason or ""),
+    ("Score Final", lambda l: round(l.final_score, 2) if l.final_score else ""),
+    ("Tier", lambda l: l.tier),
+    ("Prioridad", lambda l: l.contact_priority),
+    ("Razón Descarte", lambda l: l.discard_reason or ""),
     # Source metadata
-    ("Fuente",           lambda l: l.source),
-    ("Place ID",         lambda l: l.place_id),
+    ("Fuente", lambda l: l.source),
+    ("Place ID", lambda l: l.place_id),
     # fmt: on
 ]
+
+
+def _build_columns(city: str = "") -> list[tuple]:
+    return [
+        (header, extractor if extractor is not None else (lambda l, c=city: c))
+        for header, extractor in _COLUMNS
+    ]
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -127,6 +144,8 @@ def export_to_excel(
     report: RunReport,
     output_dir: str = "output",
     filename_prefix: str = "prospectos",
+    route_plan: RoutePlan | None = None,
+    city: str = "",
 ) -> str:
     """
     Export leads + report to an Excel workbook.
@@ -145,15 +164,19 @@ def export_to_excel(
     wb = Workbook()
     wb.remove(wb.active)  # type: ignore[arg-type]
 
+    columns = _build_columns(city)
+
     # Tier sheets
     hot_leads = [l for l in leads if l.tier == "HOT"]
     warm_leads = [l for l in leads if l.tier == "WARM"]
     cold_leads = [l for l in leads if l.tier == "COLD"]
 
-    _write_leads_sheet(wb, "🔴 HOT", hot_leads, "HOT")
-    _write_leads_sheet(wb, "🟠 WARM", warm_leads, "WARM")
-    _write_leads_sheet(wb, "🔵 COLD", cold_leads, "COLD")
-    _write_leads_sheet(wb, "📋 TODOS", list(leads), "TODOS")
+    _write_leads_sheet(wb, "🔴 HOT", hot_leads, "HOT", columns)
+    _write_leads_sheet(wb, "🟠 WARM", warm_leads, "WARM", columns)
+    _write_leads_sheet(wb, "🔵 COLD", cold_leads, "COLD", columns)
+    _write_leads_sheet(wb, "📋 TODOS", list(leads), "TODOS", columns)
+    if route_plan:
+        _write_route_sheet(wb, route_plan)
     _write_summary_sheet(wb, report)
 
     wb.save(out_path)
@@ -170,13 +193,16 @@ def _write_leads_sheet(
     sheet_name: str,
     leads: list[QualifiedLead],
     tier_key: str,
+    columns: list[tuple] | None = None,
 ) -> None:
+    if columns is None:
+        columns = _build_columns()
     ws = wb.create_sheet(title=sheet_name)
     header_fill = _HEADER_FILL.get(tier_key, _HEADER_FILL["TODOS"])
     row_fill = _TIER_ROW_FILL.get(tier_key)
 
     # Header row
-    headers = [col[0] for col in _COLUMNS]
+    headers = [col[0] for col in columns]
     for col_idx, header in enumerate(headers, start=1):
         cell = ws.cell(row=1, column=col_idx, value=header)
         cell.font = _HEADER_FONT
@@ -191,7 +217,7 @@ def _write_leads_sheet(
     # Data rows
     for row_idx, lead in enumerate(leads, start=2):
         fill = _TIER_ROW_FILL.get(lead.tier, row_fill)
-        for col_idx, (_, extractor) in enumerate(_COLUMNS, start=1):
+        for col_idx, (_, extractor) in enumerate(columns, start=1):
             try:
                 value = extractor(lead)
             except Exception:  # noqa: BLE001
@@ -258,4 +284,109 @@ def _write_summary_sheet(wb: "Workbook", report: RunReport) -> None:
 
     ws.column_dimensions["A"].width = 35
     ws.column_dimensions["B"].width = 45
+
+
+def _write_route_sheet(wb: "Workbook", route_plan: RoutePlan) -> None:
+    ws = wb.create_sheet(title="RUTA")
+    headers = [
+        "Orden de Visita",
+        "Negocio",
+        "Dirección",
+        "Teléfono",
+        "Tier",
+        "Score",
+        "Distancia al siguiente",
+        "Tiempo al siguiente",
+        "Hora estimada de llegada",
+        "Google Maps",
+    ]
+
+    for col_idx, header in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=col_idx, value=header)
+        cell.font = _ROUTE_HEADER_FONT
+        cell.fill = _HEADER_FILL["RUTA"]  # type: ignore[arg-type]
+        cell.alignment = Alignment(
+            horizontal="center", vertical="center", wrap_text=True
+        )
+        cell.border = _BORDER  # type: ignore[arg-type]
+
+    for row_idx, waypoint in enumerate(route_plan.waypoints, start=2):
+        values = [
+            waypoint.visit_order,
+            waypoint.lead_name,
+            waypoint.address,
+            waypoint.phone,
+            waypoint.tier,
+            round(waypoint.final_score, 2),
+            _format_distance_km(waypoint.distance_to_next_km),
+            _format_duration_minutes(waypoint.duration_to_next_minutes),
+            _format_eta(waypoint.estimated_arrival_minutes),
+            "Abrir mapa",
+        ]
+        for col_idx, value in enumerate(values, start=1):
+            cell = ws.cell(row=row_idx, column=col_idx, value=value)
+            cell.alignment = Alignment(vertical="top", wrap_text=True)
+            cell.border = _BORDER  # type: ignore[arg-type]
+            if col_idx == 5:
+                fill = _ROUTE_TIER_FILL.get(waypoint.tier)
+                if fill:
+                    cell.fill = fill
+            if col_idx == 10 and waypoint.google_maps_url:
+                cell.hyperlink = waypoint.google_maps_url
+                cell.style = "Hyperlink"
+
+    total_row = ws.max_row + 1
+    for col_idx in range(1, len(headers) + 1):
+        cell = ws.cell(row=total_row, column=col_idx)
+        cell.border = _BORDER  # type: ignore[arg-type]
+        if col_idx in {1, 7, 8}:
+            cell.fill = _HEADER_FILL["RUTA"]  # type: ignore[arg-type]
+
+    ws.cell(row=total_row, column=1, value="TOTAL")
+    ws.cell(
+        row=total_row,
+        column=7,
+        value=_format_distance_km(route_plan.total_distance_km),
+    )
+    ws.cell(
+        row=total_row,
+        column=8,
+        value=_format_duration_minutes(route_plan.total_duration_minutes),
+    )
+
+    for col_idx in range(1, len(headers) + 1):
+        max_len = max(
+            (
+                len(str(ws.cell(row=row_idx, column=col_idx).value or ""))
+                for row_idx in range(1, ws.max_row + 1)
+            ),
+            default=10,
+        )
+        ws.column_dimensions[get_column_letter(col_idx)].width = min(max_len + 2, 40)
+
+    ws.freeze_panes = "A2"
+
+
+def _format_distance_km(distance_km: float) -> str:
+    if distance_km <= 0:
+        return ""
+    return f"{distance_km:.2f} km"
+
+
+def _format_duration_minutes(duration_minutes: float) -> str:
+    if duration_minutes <= 0:
+        return ""
+    rounded = int(round(duration_minutes))
+    hours, minutes = divmod(rounded, 60)
+    if hours:
+        return f"{hours}h {minutes}min"
+    return f"{minutes} min"
+
+
+def _format_eta(minutes_from_start: float) -> str:
+    rounded = int(round(minutes_from_start))
+    hours, minutes = divmod(rounded, 60)
+    if hours:
+        return f"T+{hours}h {minutes}min"
+    return f"T+{minutes} min"
     ws.freeze_panes = "A2"

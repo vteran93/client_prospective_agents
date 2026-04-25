@@ -88,3 +88,26 @@ class TestBusinessContextConfig:
         cfg = load_config(str(_FIXTURES / "smoke_config.yaml"))
         assert cfg.business_context is None
         assert len(cfg.queries) > 0
+
+
+class TestRoutePlanningConfig:
+    def test_load_route_planning_from_yaml(self):
+        cfg = load_config(str(_FIXTURES / "route_planning_config.yaml"))
+        assert cfg.route_planning is not None
+        assert cfg.route_planning.enabled is True
+        assert cfg.route_planning.origin_address == "Carrera 7 #72-13, Bogotá, Colombia"
+        assert cfg.route_planning.max_waypoints_per_route == 5
+        assert cfg.route_planning.tiers_to_visit == ["HOT", "WARM"]
+
+    def test_smoke_config_no_route_planning(self):
+        cfg = load_config(str(_FIXTURES / "smoke_config.yaml"))
+        assert cfg.route_planning is None
+
+    def test_route_planning_requires_google_maps_key(self):
+        from config import AppSettings, validate_api_keys
+
+        cfg = load_config(str(_FIXTURES / "route_planning_config.yaml"))
+        settings = AppSettings(openai_api_key="sk-test", google_maps_api_key=None)
+
+        with pytest.raises(ConfigError, match="route_planning"):
+            validate_api_keys(cfg, settings)

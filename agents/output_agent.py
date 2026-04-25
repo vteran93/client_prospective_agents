@@ -20,7 +20,7 @@ from rich.console import Console
 from rich.table import Table
 
 from config import AppSettings
-from models import BusinessSummary, QualifiedLead, RunReport, SearchConfig
+from models import BusinessSummary, QualifiedLead, RoutePlan, RunReport, SearchConfig
 
 console = Console()
 
@@ -37,6 +37,7 @@ class OutputAgent:
         settings: AppSettings,  # noqa: ARG003 — reserved for future cloud upload
         business_summary: BusinessSummary | None = None,
         auto_generated_queries: Sequence[str] | None = None,
+        route_plan: RoutePlan | None = None,
     ) -> str:
         agent = cls(config)
         return agent.run(
@@ -44,10 +45,12 @@ class OutputAgent:
             report,
             business_summary=business_summary,
             auto_generated_queries=list(auto_generated_queries or []),
+            route_plan=route_plan,
         )
 
     def __init__(self, config: SearchConfig) -> None:
         self.config = config
+        self.city = config.city
 
     # ──────────────────────────────────────────────────────────────
 
@@ -57,6 +60,7 @@ class OutputAgent:
         report: RunReport,
         business_summary: BusinessSummary | None = None,
         auto_generated_queries: list[str] | None = None,
+        route_plan: RoutePlan | None = None,
     ) -> str:
         from tools.excel_tool import export_to_excel
 
@@ -65,6 +69,8 @@ class OutputAgent:
             report=report,
             output_dir="output",
             filename_prefix=self.config.output_filename,
+            route_plan=route_plan,
+            city=self.city,
         )
 
         log_path = self._write_run_log(
@@ -73,8 +79,9 @@ class OutputAgent:
             out_path,
             business_summary=business_summary,
             auto_generated_queries=auto_generated_queries or [],
+            route_plan=route_plan,
         )
-        self._print_summary(leads, report, out_path, log_path)
+        self._print_summary(leads, report, out_path, log_path, route_plan=route_plan)
         return out_path
 
     # ──────────────────────────────────────────────────────────────
@@ -86,6 +93,7 @@ class OutputAgent:
         excel_path: str,
         business_summary: BusinessSummary | None = None,
         auto_generated_queries: list[str] | None = None,
+        route_plan: RoutePlan | None = None,
     ) -> str:
         """Write run_log_{timestamp}.json for audit and reproducibility."""
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -115,6 +123,18 @@ class OutputAgent:
             "business_summary": (
                 business_summary.model_dump() if business_summary else None
             ),
+            "route_plan_summary": (
+                {
+                    "origin": route_plan.origin,
+                    "num_stops": len(route_plan.waypoints),
+                    "total_distance_km": route_plan.total_distance_km,
+                    "total_duration_minutes": route_plan.total_duration_minutes,
+                    "route_groups": route_plan.route_groups,
+                    "google_maps_urls": route_plan.google_maps_urls,
+                }
+                if route_plan
+                else None
+            ),
             "leads_summary": [
                 {
                     "name": l.name,
@@ -142,6 +162,7 @@ class OutputAgent:
         report: RunReport,
         out_path: str,
         log_path: str = "",
+        route_plan: RoutePlan | None = None,
     ) -> None:
         hot = [l for l in leads if l.tier == "HOT"]
         warm = [l for l in leads if l.tier == "WARM"]
@@ -188,6 +209,9 @@ class OutputAgent:
                 )
             console.print(top)
 
+        if route_plan:
+            self._print_route_summary(route_plan)
+
         console.print(
             f"\n[bold green]✅ Excel exportado → [link={out_path}]{out_path}[/link]"
         )
@@ -195,3 +219,26 @@ class OutputAgent:
             console.print(
                 f"[bold green]✅ Run log → [link={log_path}]{log_path}[/link]"
             )
+
+    def _print_route_summary(self, route_plan: RoutePlan) -> None:
+        console.print()
+        console.print(
+            "[bold cyan]🗺️ RUTA OPTIMIZADA — "
+            f"{len(route_plan.waypoints)} paradas · "
+            f"{route_plan.total_distance_km:.2f} km · "
+            f"{route_plan.total_duration_minutes:.1f} min[/bold cyan]"
+        )
+        for waypoint in route_plan.waypoints:
+            console.print(
+                f" {waypoint.visit_order}. {waypoint.lead_name} "
+                f"({waypoint.tier} · {waypoint.final_score:.1f}) — {waypoint.address}",
+                markup=False,
+            )
+        if route_plan.google_maps_urls:
+            console.print("📱 Google Maps (abrir en celular):", markup=False)
+            for index, url in enumerate(route_plan.google_maps_urls, start=1):
+                console.print(
+                    f"   Ruta {index}: {url}",
+                    markup=False,
+                    soft_wrap=True,
+                )

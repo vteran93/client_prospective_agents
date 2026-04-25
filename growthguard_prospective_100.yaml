@@ -1,0 +1,50 @@
+# growthguard_prospective_100.yaml
+# Campaña: Encontrar 100 negocios que necesitan leads / prospección B2B
+# Target: PYMEs de servicios en Bogotá que venden B2B y necesitan clientes
+
+campaign:
+  name: "GrowthGuard Prospección B2B Q2-2026"
+  queries:
+    - "agencia de marketing digital Bogotá"
+    - "consultoría empresarial Bogotá"
+    - "empresa de software Bogotá"
+    - "agencia de publicidad Bogotá"
+    - "empresa de contabilidad Bogotá"
+    - "agencia de seguros Bogotá"
+    - "empresa de capacitación empresarial Bogotá"
+    - "consultoría de recursos humanos Bogotá"
+    - "empresa de outsourcing Bogotá"
+    - "agencia de reclutamiento Bogotá"
+  city: "Bogotá"
+  country: "Colombia"
+  language: "es"
+  max_leads: 100
+  max_iterations: 5
+  sources:
+    - google_maps
+    - tavily
+    - brave
+  scrape_websites: true
+  scraper_concurrency: 6
+  output_filename: "growthguard_clientes_prospectivos_b2b"
+
+  business_context:
+    description: "GrowthGuard ofrece un servicio de prospección inteligente B2B impulsado por IA. Generamos listas de prospectos cualificados con datos de contacto, análisis de madurez digital, perfil de ventas y rutas de visita optimizadas. Ideal para empresas de servicios que necesitan encontrar nuevos clientes corporativos."
+    reference_urls:
+      - "https://www.growthguard.co"
+    target_audience: "Gerentes comerciales y dueños de empresas de servicios B2B en Bogotá que buscan crecer su base de clientes"
+    ideal_customers:
+      - "Agencias de marketing digital con 5-30 empleados que necesitan leads para sus servicios"
+      - "Consultoras empresariales que buscan nuevos clientes corporativos"
+      - "Empresas de software/SaaS que venden a empresas colombianas"
+      - "Agencias de seguros corporativos que necesitan prospección"
+      - "Firmas de outsourcing y BPO buscando expandir cartera"
+
+llm:
+  provider: bedrock
+  temperature: 0.2
+
+qualification:
+  min_score_hot: 7.0
+  min_score_warm: 4.5
+  target_hot_warm: 80

@@ -15,7 +15,7 @@ from typing import Optional
 import yaml
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from models import BusinessContext, QualificationConfig, SearchConfig
+from models import BusinessContext, QualificationConfig, RouteConfig, SearchConfig
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -93,6 +93,7 @@ def load_config(path: str, overrides: Optional[dict] = None) -> SearchConfig:
     llm_section = raw.get("llm", {})
     qual_section = raw.get("qualification", {})
     bc_section = campaign.get("business_context")
+    route_section = raw.get("route_planning") or campaign.get("route_planning")
 
     data: dict = {
         "campaign_name": campaign.get("name", "unnamed_campaign"),
@@ -120,6 +121,18 @@ def load_config(path: str, overrides: Optional[dict] = None) -> SearchConfig:
             reference_urls=bc_section.get("reference_urls", []),
             target_audience=bc_section.get("target_audience", ""),
             ideal_customers=bc_section.get("ideal_customers", []),
+        )
+
+    if route_section and isinstance(route_section, dict):
+        data["route_planning"] = RouteConfig(
+            enabled=route_section.get("enabled", False),
+            origin_address=route_section.get("origin_address", ""),
+            origin_lat=route_section.get("origin_lat", 0.0),
+            origin_lng=route_section.get("origin_lng", 0.0),
+            travel_mode=route_section.get("travel_mode", "DRIVE"),
+            departure_time=route_section.get("departure_time"),
+            max_waypoints_per_route=route_section.get("max_waypoints_per_route", 25),
+            tiers_to_visit=route_section.get("tiers_to_visit", ["HOT", "WARM"]),
         )
 
     if overrides:
@@ -172,6 +185,10 @@ def validate_api_keys(config: SearchConfig, settings: AppSettings) -> None:
         for attr, env_var in _LLM_KEY_MAP[provider]:
             if not getattr(settings, attr):
                 errors.append(f"{env_var} requerida para llm.provider='{provider}'")
+
+    if config.route_planning and config.route_planning.enabled:
+        if not settings.google_maps_api_key:
+            errors.append("GOOGLE_MAPS_API_KEY requerida para route_planning.enabled=true")
 
     if errors:
         raise ConfigError(

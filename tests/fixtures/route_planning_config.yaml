@@ -1,0 +1,36 @@
+campaign:
+  name: "Route Planning Campaign"
+  queries:
+    - "soluciones odontológicas bogotá"
+  city: "Bogotá"
+  country: "Colombia"
+  language: "es"
+  max_leads: 10
+  max_iterations: 1
+  sources:
+    - duckduckgo
+  scrape_websites: false
+  scraper_concurrency: 2
+  output_filename: "route_test"
+
+route_planning:
+  enabled: true
+  origin_address: "Carrera 7 #72-13, Bogotá, Colombia"
+  origin_lat: 4.6533
+  origin_lng: -74.0553
+  travel_mode: "DRIVE"
+  departure_time: "2026-03-24T08:00:00-05:00"
+  max_waypoints_per_route: 5
+  tiers_to_visit:
+    - hot
+    - warm
+    - hot
+
+llm:
+  provider: "openai"
+  temperature: 0.1
+
+qualification:
+  min_score_hot: 7.0
+  min_score_warm: 4.5
+  target_hot_warm: 3

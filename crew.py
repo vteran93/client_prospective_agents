@@ -33,6 +33,7 @@ from agents.output_agent import OutputAgent
 from agents.profiler_agent import ProfilerAgent
 from agents.qualifier_agent import QualifierAgent
 from agents.query_generator_agent import QueryGeneratorAgent
+from agents.route_agent import RouteAgent
 from agents.scraper_agent import ScraperAgent
 from agents.search_agent import SearchAgent
 from agents.visit_timing_agent import VisitTimingAgent
@@ -44,6 +45,7 @@ from models import (
     ProfiledLead,
     QualifiedLead,
     RawLead,
+    RoutePlan,
     RunReport,
     SearchConfig,
     VisitTiming,
@@ -81,12 +83,15 @@ class ProspectingCrew:
         max_leads = self.config.max_leads
         max_iters = self.config.max_iterations
         qualified: list[QualifiedLead] = []
+        route_plan: RoutePlan | None = None
 
         # ── PASO 0: Auto-generación de queries (EP-7) ──────────
         if self.config.business_context:
             console.rule("[bold magenta]Paso 0 · Auto Query Generation")
             manual_queries = list(self.config.queries)
-            business_summary = ContextAgent.process(self.config, self.settings, self.llm)
+            business_summary = ContextAgent.process(
+                self.config, self.settings, self.llm
+            )
             self.config.queries = QueryGeneratorAgent.process(
                 business_summary,
                 self.config,
@@ -94,9 +99,7 @@ class ProspectingCrew:
             )
             manual_keys = {_normalize_query(q) for q in manual_queries}
             auto_generated_queries = [
-                q
-                for q in self.config.queries
-                if _normalize_query(q) not in manual_keys
+                q for q in self.config.queries if _normalize_query(q) not in manual_keys
             ]
             console.print(
                 f"[magenta]  🧠 Queries auto-generadas: {len(auto_generated_queries)}"
@@ -184,14 +187,34 @@ class ProspectingCrew:
             error_log=error_log,
         )
 
-        OutputAgent.process(
+        if self.config.route_planning and self.config.route_planning.enabled:
+            try:
+                route_plan = RouteAgent.process(
+                    qualified,
+                    self.config,
+                    self.settings,
+                )
+            except Exception as exc:  # noqa: BLE001
+                error_log.append(
+                    {
+                        "step": "route_planning",
+                        "message": str(exc),
+                    }
+                )
+                console.print(f"[yellow]⚠ RouteAgent falló y será omitido: {exc}")
+
+        excel_path = OutputAgent.process(
             qualified,
             report,
             self.config,
             self.settings,
             business_summary=business_summary,
             auto_generated_queries=auto_generated_queries,
+            route_plan=route_plan,
         )
+
+        self._persist_to_db(qualified, report, excel_path)
+
         return qualified, report
 
     # ──────────────────────────────────────────────────────────────
@@ -258,6 +281,30 @@ class ProspectingCrew:
         with open(checkpoint_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         console.print(f"[dim]  💾 Checkpoint → {checkpoint_path}[/dim]")
+
+    def _persist_to_db(
+        self,
+        leads: list[QualifiedLead],
+        report: RunReport,
+        excel_path: str,
+    ) -> None:
+        from tools.db_tool import save_campaign_leads
+
+        try:
+            campaign_id = save_campaign_leads(
+                leads=leads,
+                report=report,
+                city=self.config.city,
+                country=self.config.country,
+                excel_path=excel_path,
+                config_snapshot=self.config.model_dump(mode="json"),
+            )
+            console.print(
+                f"[green]  💾 {len(leads)} leads guardados en DB "
+                f"(campaign_id={campaign_id})"
+            )
+        except Exception as exc:  # noqa: BLE001
+            console.print(f"[yellow]  ⚠ DB persist falló (no crítico): {exc}")
 
 
 # ──────────────────────────────────────────────────────────────────

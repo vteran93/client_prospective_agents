@@ -1823,14 +1823,14 @@ crew.py (después de QualifierAgent, antes/durante OutputAgent)
 
 ---
 
-### TICKET-045 · Modelos RouteConfig + RouteWaypoint + RoutePlan 🔶 PENDIENTE
+### TICKET-045 · Modelos RouteConfig + RouteWaypoint + RoutePlan ✅ COMPLETADO
 
 ```
 Tipo:       feature
 Prioridad:  P1
 Est.:       2 h
 Deps.:      TICKET-002 (Modelos), TICKET-003 (Config)
-Estado:     PENDIENTE
+Estado:     COMPLETADO
 ```
 
 **Descripción**  
@@ -1887,22 +1887,22 @@ route_planning:
 ```
 
 **Criterios de aceptación**
-- [ ] `RouteConfig`, `RouteWaypoint`, `RoutePlan` en `models.py`
-- [ ] `SearchConfig.route_planning: Optional[RouteConfig] = None`
-- [ ] `config.py` carga la sección `route_planning` del YAML
-- [ ] Si `route_planning` no está en YAML, `config.route_planning` es `None` (retrocompatible)
-- [ ] Tests unitarios: config con/sin route_planning, validación de limits
+- [x] `RouteConfig`, `RouteWaypoint`, `RoutePlan` en `models.py`
+- [x] `SearchConfig.route_planning: Optional[RouteConfig] = None`
+- [x] `config.py` carga la sección `route_planning` del YAML
+- [x] Si `route_planning` no está en YAML, `config.route_planning` es `None` (retrocompatible)
+- [x] Tests unitarios: config con/sin route_planning, validación de limits
 
 ---
 
-### TICKET-046 · RouteOptimizerTool (Google Routes API) 🔶 PENDIENTE
+### TICKET-046 · RouteOptimizerTool (Google Routes API) ✅ COMPLETADO
 
 ```
 Tipo:       feature
 Prioridad:  P1
 Est.:       4 h
 Deps.:      TICKET-045, TICKET-009 (Maps Tool pattern)
-Estado:     PENDIENTE
+Estado:     COMPLETADO
 ```
 
 **Descripción**  
@@ -1945,29 +1945,30 @@ def build_google_maps_url(
 ```
 
 **Criterios de aceptación**
-- [ ] `compute_optimized_route()` llama `POST routes.googleapis.com/directions/v2:computeRoutes`
-- [ ] Request usa `optimizeWaypointOrder: true` y `X-Goog-FieldMask` minimal
-- [ ] Soporta waypoints por `location` (lat/lng) y opcionalmente `placeId`
-- [ ] Retorna `optimized_order` con los índices reordenados
-- [ ] Retorna distancia/duración por leg y totales
-- [ ] Maneja error si Routes API no está habilitada (HTTP 403) con mensaje claro
-- [ ] `build_google_maps_url()` genera URLs válidos con `dir_action=navigate` para turn-by-turn
-- [ ] Si hay >9 waypoints, genera múltiples URLs (cada uno con max 9 waypoints)
-- [ ] URLs usan `place_id` cuando disponible via `waypoint_place_ids` param
-- [ ] Rate limiting (misma GOOGLE_MAPS_API_KEY)
-- [ ] **Sin dependencia de crewai** (igual que `dedup_tool.py` y `excel_tool.py`)
-- [ ] Tests unitarios con response mockeado
-
+- [x] `compute_optimized_route()` llama `POST routes.googleapis.com/directions/v2:computeRoutes`
+- [x] Request usa `optimizeWaypointOrder: true` y `X-Goog-FieldMask` minimal
+- [x] Soporta waypoints por `location` (lat/lng) y opcionalmente `placeId`
+- [x] Retorna `optimized_order` con los índices reordenados
+- [x] Retorna distancia/duración por leg y totales
+- [x] Maneja error si Routes API no está habilitada (HTTP 403) con mensaje claro
+- [x] `build_google_maps_url()` genera URLs válidos con `dir_action=navigate` para turn-by-turn
+- [x] Si hay >9 waypoints, genera múltiples URLs (cada uno con max 9 waypoints)
+- [x] URLs usan `place_id` cuando disponible via `waypoint_place_ids` param
+- [x] Rate limiting (misma GOOGLE_MAPS_API_KEY)
+- [x] **Sin dependencia de crewai** (igual que `dedup_tool.py` y `excel_tool.py`)
+- [x] Tests unitarios con response mockeado
+- [x] Test de integración con response real
+- [x] Pruebas end2end
 ---
 
-### TICKET-047 · RouteAgent: optimización de rutas de visita 🔶 PENDIENTE
+### TICKET-047 · RouteAgent: optimización de rutas de visita ✅ COMPLETADO
 
 ```
 Tipo:       feature
 Prioridad:  P1
 Est.:       3 h
 Deps.:      TICKET-045, TICKET-046
-Estado:     PENDIENTE
+Estado:     COMPLETADO
 ```
 
 **Descripción**  
@@ -2026,27 +2027,27 @@ class RouteAgent:
 ```
 
 **Criterios de aceptación**
-- [ ] `RouteAgent.process()` → `RoutePlan | None`
-- [ ] Retorna `None` si route_planning no está habilitado o no hay leads visitables
-- [ ] Filtra leads sin coordenadas (lat=0, lng=0)
-- [ ] Si hay 0 leads visitables, retorna `None` con warning en consola
-- [ ] Respeta `max_waypoints_per_route` (default 25, max API)
-- [ ] Usa `contact_priority` para decidir qué leads incluir si hay >25
-- [ ] Genera `google_maps_urls` — múltiples si >9 waypoints
-- [ ] Cada `RouteWaypoint` tiene `visit_order` (1-indexed) y `estimated_arrival_minutes`
-- [ ] Log con Rich: `"🗺️ Ruta optimizada: N paradas, X km, Y min"`
-- [ ] Manejo de errores: si API falla, log warning y retornar `None` (no romper el pipeline)
+- [x] `RouteAgent.process()` → `RoutePlan | None`
+- [x] Retorna `None` si route_planning no está habilitado o no hay leads visitables
+- [x] Filtra leads sin coordenadas (lat=0, lng=0)
+- [x] Si hay 0 leads visitables, retorna `None` con warning en consola
+- [x] Respeta `max_waypoints_per_route` (default 25, max API)
+- [x] Usa `contact_priority` para decidir qué leads incluir si hay >25
+- [x] Genera `google_maps_urls` — múltiples si >9 waypoints
+- [x] Cada `RouteWaypoint` tiene `visit_order` (1-indexed) y `estimated_arrival_minutes`
+- [x] Log con Rich: `"🗺️ Ruta optimizada: N paradas, X km, Y min"`
+- [x] Manejo de errores: si API falla, log warning y retornar `None` (no romper el pipeline)
 
 ---
 
-### TICKET-048 · Excel hoja "RUTA" + output consola con links móvil 🔶 PENDIENTE
+### TICKET-048 · Excel hoja "RUTA" + output consola con links móvil ✅ COMPLETADO
 
 ```
 Tipo:       feature
 Prioridad:  P1
 Est.:       3 h
 Deps.:      TICKET-047, TICKET-012 (Excel Tool)
-Estado:     PENDIENTE
+Estado:     COMPLETADO
 ```
 
 **Descripción**  
@@ -2081,26 +2082,26 @@ Agregar una 6ª hoja al Excel de salida con el itinerario de visitas optimizado.
 ```
 
 **Criterios de aceptación**
-- [ ] Hoja "RUTA" en el Excel con las 10 columnas definidas
-- [ ] Header color: `#BDD7EE` (azul claro)
-- [ ] Columna "Tier" con color de fondo condicional (HOT=verde, WARM=amarillo)
-- [ ] Columna "Google Maps" como hyperlink clickeable en Excel
-- [ ] Fila final de totales: distancia total, tiempo total
-- [ ] Si `RoutePlan` es `None`, no se genera la hoja (no romper el Excel)
-- [ ] Output Rich en consola con el resumen y URLs
-- [ ] URLs en consola son copiables (Rich `console.print` con markup desactivado para URLs)
-- [ ] Tests: Excel con hoja RUTA, Excel sin hoja RUTA (route_planning disabled)
+- [x] Hoja "RUTA" en el Excel con las 10 columnas definidas
+- [x] Header color: `#BDD7EE` (azul claro)
+- [x] Columna "Tier" con color de fondo condicional (HOT=verde, WARM=amarillo)
+- [x] Columna "Google Maps" como hyperlink clickeable en Excel
+- [x] Fila final de totales: distancia total, tiempo total
+- [x] Si `RoutePlan` es `None`, no se genera la hoja (no romper el Excel)
+- [x] Output Rich en consola con el resumen y URLs
+- [x] URLs en consola son copiables (Rich `console.print` con markup desactivado para URLs)
+- [x] Tests: Excel con hoja RUTA, Excel sin hoja RUTA (route_planning disabled)
 
 ---
 
-### TICKET-049 · Integrar RouteAgent en crew.py (paso 8b) 🔶 PENDIENTE
+### TICKET-049 · Integrar RouteAgent en crew.py (paso 8b) ✅ COMPLETADO
 
 ```
 Tipo:       feature
 Prioridad:  P1
 Est.:       1 h
 Deps.:      TICKET-047, TICKET-048
-Estado:     PENDIENTE
+Estado:     COMPLETADO
 ```
 
 **Descripción**  
@@ -2120,12 +2121,12 @@ OutputAgent.process(qualified, report, self.config, self.settings, route_plan=ro
 ```
 
 **Criterios de aceptación**
-- [ ] `RouteAgent.process()` se llama solo si `route_planning.enabled`
-- [ ] `RoutePlan` se pasa a `OutputAgent.process()` como kwarg opcional
-- [ ] Si RouteAgent falla (returns None o exception), el pipeline continúa normalmente
-- [ ] `RoutePlan` metadata se incluye en `run_log_*.json`: `route_plan_summary` con total_distance, total_duration, num_stops, google_maps_urls
-- [ ] Si `route_planning` no está en config, todo funciona exactamente igual (retrocompatible)
-- [ ] 55/55 tests existentes siguen pasando sin cambios
+- [x] `RouteAgent.process()` se llama solo si `route_planning.enabled`
+- [x] `RoutePlan` se pasa a `OutputAgent.process()` como kwarg opcional
+- [x] Si RouteAgent falla (returns None o exception), el pipeline continúa normalmente
+- [x] `RoutePlan` metadata se incluye en `run_log_*.json`: `route_plan_summary` con total_distance, total_duration, num_stops, google_maps_urls
+- [x] Si `route_planning` no está en config, todo funciona exactamente igual (retrocompatible)
+- [x] 55/55 tests existentes siguen pasando sin cambios
 
 ---
 

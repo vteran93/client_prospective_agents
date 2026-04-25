@@ -23,6 +23,9 @@ from models import (
     QualificationConfig,
     QualifiedLead,
     RawLead,
+    RouteConfig,
+    RoutePlan,
+    RouteWaypoint,
     RunReport,
     SearchConfig,
     VisitTiming,
@@ -316,6 +319,31 @@ class TestSearchConfig:
         """Sin queries ni business_context → ValidationError."""
         with pytest.raises(Exception, match="queries.*business_context"):
             SearchConfig(campaign_name="Empty", city="Bogotá")
+
+
+class TestRouteModels:
+    def test_route_config_normalizes_tiers(self):
+        cfg = RouteConfig(tiers_to_visit=["hot", "warm", "hot", "cold"])
+        assert cfg.tiers_to_visit == ["HOT", "WARM", "COLD"]
+
+    def test_route_config_limit_validation(self):
+        with pytest.raises(Exception):
+            RouteConfig(max_waypoints_per_route=26)
+
+    def test_route_waypoint_and_plan_defaults(self):
+        waypoint = RouteWaypoint(
+            lead_name="Clínica Dental Norte",
+            address="Calle 100 #10-20",
+            lat=4.68,
+            lng=-74.04,
+            tier="HOT",
+            contact_priority=1,
+            final_score=8.7,
+        )
+        plan = RoutePlan(origin="Oficina", waypoints=[waypoint])
+        assert plan.origin == "Oficina"
+        assert plan.route_groups == 1
+        assert len(plan.waypoints) == 1
 
 
 # ──────────────────────────────────────────────────────────────────

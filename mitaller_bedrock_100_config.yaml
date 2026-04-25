@@ -1,0 +1,39 @@
+campaign:
+  name: "MiTaller Talleres Mecanicos Bedrock"
+  queries:
+    - "taller mecánico"
+    - "mecánica automotriz"
+    - "servicio técnico automotriz"
+    - "alineación y balanceo"
+  city: "Bogotá"
+  country: "Colombia"
+  language: "es"
+  max_leads: 100
+  max_iterations: 5
+  sources:
+    - google_maps
+    - tavily
+    - brave
+  scrape_websites: true
+  scraper_concurrency: 6
+  output_filename: "mitaller_talleres_mecanicos_bedrock"
+
+llm:
+  provider: "bedrock"
+  temperature: 0.2
+
+qualification:
+  min_score_hot: 7.0
+  min_score_warm: 4.5
+  target_hot_warm: 100
+
+route_planning:
+  enabled: true
+  origin_address: "Calle 179 N 6-29, Bogotá, Colombia"
+  origin_lat: 4.6680832
+  origin_lng: -74.1220245
+  travel_mode: "DRIVE"
+  max_waypoints_per_route: 25
+  tiers_to_visit:
+    - HOT
+    - WARM
