@@ -26,6 +26,7 @@ from tools.dedup_tool import deduplicate_leads
 console = Console()
 
 _SCRAPED_RE = re.compile(r"\[scraped\](.*?)\[/scraped\]", re.DOTALL)
+_CO_MOBILE_RE = re.compile(r"(?:\+?57\s*)?3\d{2}[\s\-]?\d{3}[\s\-]?\d{4}")
 
 
 class EnrichmentAgent:
@@ -153,7 +154,27 @@ def _to_enriched_lead(raw: RawLead) -> EnrichedLead:
             el.lead_summary = scraped_data.get("description", "")[:300]
 
     el.merge_sources = [raw.source]
+    _derive_whatsapp(el)
     return el
+
+
+def _derive_whatsapp(lead: EnrichedLead) -> None:
+    if lead.has_whatsapp and lead.whatsapp_number:
+        return
+    phones = [lead.phone] + list(lead.phones_scraped or [])
+    for phone in phones:
+        if not phone:
+            continue
+        if _CO_MOBILE_RE.search(phone):
+            digits = re.sub(r"\D", "", phone)
+            if digits.startswith("57") and len(digits) >= 12:
+                lead.whatsapp_number = f"+{digits}"
+            elif digits.startswith("3") and len(digits) == 10:
+                lead.whatsapp_number = f"+57{digits}"
+            else:
+                continue
+            lead.has_whatsapp = True
+            return
 
 
 def _extract_json(text: str) -> dict | None:
